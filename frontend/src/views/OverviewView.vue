@@ -126,22 +126,44 @@ const services = computed(() => [
       </div>
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-      <MiniTrendChart
-        title="CPU"
-        subtitle="Останні виміри"
-        :points="cpuUsageHistory"
-        color="#7C83FF"
-        :formatter="(value) => `${value.toFixed(1)}%`"
-      />
+    <div class="space-y-2">
+      <div class="px-1 text-[10px] sm:text-xs uppercase tracking-wide text-white/60">
+        Історія метрик
+      </div>
 
-      <MiniTrendChart
-        title="Температура CPU"
-        subtitle="Останні виміри"
-        :points="cpuTempHistory"
-        color="#FF8A65"
-        :formatter="(value) => `${value.toFixed(1)}°C`"
-      />
+      <div class="-mx-4 px-4 overflow-x-auto no-scrollbar">
+        <div class="flex gap-4 min-w-max pr-4">
+          <div class="w-[300px] sm:w-[360px] shrink-0">
+            <MiniTrendChart
+              title="CPU"
+              subtitle="Останні виміри"
+              :points="cpuUsageHistory"
+              color="#7C83FF"
+              :formatter="(value) => `${value.toFixed(1)}%`"
+            />
+          </div>
+
+          <div class="w-[300px] sm:w-[360px] shrink-0">
+            <MiniTrendChart
+              title="Температура CPU"
+              subtitle="Останні виміри"
+              :points="cpuTempHistory"
+              color="#FF8A65"
+              :formatter="(value) => `${value.toFixed(1)}°C`"
+            />
+          </div>
+
+          <div class="w-[300px] sm:w-[360px] shrink-0">
+            <MiniTrendChart
+              title="RAM"
+              subtitle="Останні виміри"
+              :points="ramUsageHistory"
+              color="#31D0AA"
+              :formatter="(value) => `${value.toFixed(1)}%`"
+            />
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 </template>

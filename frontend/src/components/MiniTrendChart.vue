@@ -27,9 +27,14 @@ const props = defineProps({
 
 function hexToRgba(hex, alpha) {
   let h = hex.replace('#', '')
+
   if (h.length === 3) {
-    h = h.split('').map((ch) => ch + ch).join('')
+    h = h
+      .split('')
+      .map((ch) => ch + ch)
+      .join('')
   }
+
   const bigint = parseInt(h, 16)
   const r = (bigint >> 16) & 255
   const g = (bigint >> 8) & 255
@@ -64,10 +69,10 @@ const chartOptions = computed(() => ({
   animation: false,
   layout: {
     padding: {
-      top: 4,
-      right: 4,
+      top: 6,
+      right: 6,
       bottom: 0,
-      left: 4
+      left: 6
     }
   },
   plugins: {
@@ -96,17 +101,17 @@ const chartOptions = computed(() => ({
 
 <template>
   <div
-    class="bg-panel rounded-2xl p-3 shadow-custom border border-white/10 flex flex-col overflow-hidden min-h-[150px]"
+    class="bg-panel rounded-2xl p-4 shadow-custom border border-white/10 flex flex-col overflow-hidden min-h-[180px]"
   >
     <div class="text-[10px] sm:text-xs uppercase tracking-wide text-white/70 mb-1">
       {{ title }}
     </div>
 
-    <div class="text-[10px] sm:text-xs text-white/50 mb-2">
+    <div class="text-[10px] sm:text-xs text-white/50 mb-3">
       {{ subtitle }}
     </div>
 
-    <div class="h-24 sm:h-28 relative overflow-hidden">
+    <div class="h-[110px] sm:h-[130px] relative overflow-hidden">
       <Chart
         type="line"
         :data="chartData"

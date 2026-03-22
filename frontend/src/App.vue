@@ -147,11 +147,22 @@ async function loadVpnSummary() {
   }
 }
 
-async function refreshHeroData() {
-  await Promise.allSettled([
+async function refreshAllData() {
+  const tasks = [
     loadMetrics(),
-    loadHeroBattery()
-  ])
+    loadHeroBattery(),
+    loadVpnSummary()
+  ]
+
+  if (activeTab.value === 'ups') {
+    tasks.push(loadUps())
+  }
+
+  if (activeTab.value === 'system') {
+    tasks.push(loadSystemDetails())
+  }
+
+  await Promise.allSettled(tasks)
 }
 
 watch(activeTab, async (tab) => {
@@ -202,7 +213,7 @@ onBeforeUnmount(() => {
       :hero-image="mykolaImage"
       :battery-percent="heroBatteryPercent"
       :refreshing="metricsRefreshing"
-      @refresh="refreshHeroData"
+      @refresh="refreshAllData"
     />
 
     <OverviewView
