@@ -11,6 +11,7 @@ const props = defineProps({
 const system = computed(() => props.systemData?.system || {})
 const network = computed(() => props.systemData?.network || {})
 const vpn = computed(() => props.systemData?.vpn || {})
+const users = computed(() => props.systemData?.users || [])
 
 const bootTime = computed(() => {
   return system.value?.bootTimeUnix
@@ -87,6 +88,36 @@ const networkRows = computed(() => [
   { label: 'RX швидкість', value: rxSpeedText.value },
   { label: 'TX швидкість', value: txSpeedText.value }
 ])
+
+function connectionLabel(type) {
+  if (type === 'ssh') return 'SSH'
+  if (type === 'local') return 'Локально'
+  if (type === 'terminal') return 'Термінал'
+  return type || 'Невідомо'
+}
+
+function connectionBadgeClass(type) {
+  if (type === 'ssh') {
+    return 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
+  }
+
+  if (type === 'local') {
+    return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+  }
+
+  if (type === 'terminal') {
+    return 'bg-violet-500/10 text-violet-300 border-violet-500/20'
+  }
+
+  return 'bg-white/5 text-white/70 border-white/10'
+}
+
+function connectionIcon(type) {
+  if (type === 'ssh') return '🖥️'
+  if (type === 'local') return '💻'
+  if (type === 'terminal') return '⌨️'
+  return '👤'
+}
 </script>
 
 <template>
@@ -134,6 +165,79 @@ const networkRows = computed(() => [
         </div>
         <div class="text-xs text-white/50 mt-2">
           Handshake: {{ vpn.lastHandshakeAgo || '—' }}
+        </div>
+      </div>
+    </div>
+
+    <!-- USERS -->
+    <div
+      v-if="users.length"
+      class="bg-panel rounded-2xl border border-white/10 p-4 shadow-custom"
+    >
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <div class="text-[10px] uppercase tracking-wide text-white/60">
+          Активні користувачі
+        </div>
+
+        <div class="text-xs text-white/45">
+          {{ users.length }} сес.
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-2 gap-3">
+        <div
+          v-for="user in users"
+          :key="`${user.username}-${user.tty}-${user.loginAt}`"
+          class="rounded-2xl border border-white/10 bg-white/[0.03] p-3"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div
+                class="w-10 h-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-base shrink-0"
+              >
+                {{ connectionIcon(user.connectionType) }}
+              </div>
+
+              <div class="min-w-0">
+                <div class="text-sm font-semibold text-white truncate">
+                  {{ user.username || '—' }}
+                </div>
+
+                <div class="text-xs text-white/45 mt-1 truncate">
+                  {{ user.tty || '—' }}
+                </div>
+              </div>
+            </div>
+
+            <div
+              class="inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] shrink-0"
+              :class="connectionBadgeClass(user.connectionType)"
+            >
+              {{ connectionLabel(user.connectionType) }}
+            </div>
+          </div>
+
+          <div class="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+            <div class="text-white/45">IP / Host</div>
+            <div class="text-white text-right break-all">
+              {{ user.remoteIp || user.from || '—' }}
+            </div>
+
+            <div class="text-white/45">Локація</div>
+            <div class="text-white text-right break-all">
+              {{ user.location || '—' }}
+            </div>
+
+            <div class="text-white/45">Вхід</div>
+            <div class="text-white text-right break-all">
+              {{ user.loginAt || '—' }}
+            </div>
+
+            <div class="text-white/45">Idle</div>
+            <div class="text-white text-right">
+              {{ user.idle || '—' }}
+            </div>
+          </div>
         </div>
       </div>
     </div>

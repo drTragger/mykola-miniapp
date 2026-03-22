@@ -35,7 +35,7 @@ func Collect() (Response, error) {
 	resp.CollectedAt = time.Now().Format(time.RFC3339)
 
 	var wg sync.WaitGroup
-	wg.Add(3)
+	wg.Add(4)
 
 	go func() {
 		defer wg.Done()
@@ -50,6 +50,11 @@ func Collect() (Response, error) {
 	go func() {
 		defer wg.Done()
 		fillVPN(&resp)
+	}()
+
+	go func() {
+		defer wg.Done()
+		fillUsers(&resp)
 	}()
 
 	wg.Wait()
@@ -513,4 +518,127 @@ func isServiceActive(name string) bool {
 	}
 
 	return strings.TrimSpace(string(out)) == "active"
+}
+
+func fillUsers(resp *Response) {
+	users, err := getLoggedInUsers()
+	if err != nil {
+		resp.Users = []UserSession{}
+		return
+	}
+
+	resp.Users = users
+}
+
+func getLoggedInUsers() ([]UserSession, error) {
+	out, err := runCommand(3, "who", "--ips")
+	if err != nil || strings.TrimSpace(out) == "" {
+		return []UserSession{}, nil
+	}
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	result := make([]UserSession, 0, len(lines))
+
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 5 {
+			continue
+		}
+
+		username := fields[0]
+		tty := fields[1]
+		datePart := fields[2]
+		timePart := fields[3]
+		from := strings.Trim(fields[4], "()")
+
+		loginAt := fmt.Sprintf("%s %s", datePart, timePart)
+
+		session := UserSession{
+			Username:       username,
+			TTY:            tty,
+			From:           from,
+			RemoteIP:       normalizeRemoteIP(from),
+			LoginAt:        loginAt,
+			Idle:           "—",
+			ConnectionType: detectConnectionType(tty, from),
+			IsLocal:        isLocalSession(tty, from),
+			Location:       "—",
+		}
+
+		result = append(result, session)
+	}
+
+	idleMap := getIdleMap()
+
+	for i := range result {
+		if idle, ok := idleMap[result[i].TTY]; ok {
+			result[i].Idle = idle
+		}
+	}
+
+	return result, nil
+}
+
+func detectConnectionType(tty, from string) string {
+	if strings.HasPrefix(tty, "tty") {
+		return "local"
+	}
+
+	if strings.HasPrefix(tty, "pts/") {
+		if from != "" && from != ":0" && from != "localhost" {
+			return "ssh"
+		}
+		return "terminal"
+	}
+
+	return "unknown"
+}
+
+func isLocalSession(tty, from string) bool {
+	if strings.HasPrefix(tty, "tty") {
+		return true
+	}
+
+	if from == "" || from == ":0" || from == "localhost" {
+		return true
+	}
+
+	ip := net.ParseIP(from)
+	if ip == nil {
+		return false
+	}
+
+	return ip.IsLoopback() || ip.IsPrivate()
+}
+
+func normalizeRemoteIP(from string) string {
+	ip := net.ParseIP(from)
+	if ip != nil {
+		return ip.String()
+	}
+
+	return from
+}
+
+func getIdleMap() map[string]string {
+	out, err := runCommand(3, "w", "-h")
+	if err != nil || strings.TrimSpace(out) == "" {
+		return map[string]string{}
+	}
+
+	result := map[string]string{}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+
+	for _, line := range lines {
+		fields := strings.Fields(line)
+		if len(fields) < 5 {
+			continue
+		}
+
+		tty := fields[1]
+		idle := fields[4]
+		result[tty] = idle
+	}
+
+	return result
 }

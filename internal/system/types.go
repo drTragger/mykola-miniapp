@@ -6,6 +6,7 @@ type Response struct {
 	System      SystemMetrics  `json:"system"`
 	Network     NetworkMetrics `json:"network"`
 	VPN         VPNMetrics     `json:"vpn"`
+	Users       []UserSession  `json:"users"`
 	Error       string         `json:"error,omitempty"`
 }
 
@@ -58,4 +59,16 @@ type QBittorrentVPN struct {
 	User      string `json:"user"`
 	Binding   string `json:"binding"`
 	WebUI     string `json:"webui"`
+}
+
+type UserSession struct {
+	Username       string `json:"username"`
+	TTY            string `json:"tty"`
+	From           string `json:"from"`
+	RemoteIP       string `json:"remoteIp"`
+	LoginAt        string `json:"loginAt"`
+	Idle           string `json:"idle"`
+	ConnectionType string `json:"connectionType"`
+	IsLocal        bool   `json:"isLocal"`
+	Location       string `json:"location"`
 }
