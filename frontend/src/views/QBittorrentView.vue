@@ -37,6 +37,17 @@ const actionLoading = ref(false)
 const rowActionMenu = ref()
 const rowActionTorrent = ref(null)
 
+const searchInputRef = ref(null)
+
+function blurSearch() {
+  const input =
+    searchInputRef.value?.$el?.querySelector('input') ||
+    searchInputRef.value?.input ||
+    searchInputRef.value
+
+  input?.blur?.()
+}
+
 const filteredTorrents = computed(() => {
   const term = search.value.trim().toLowerCase()
   if (!term) return torrents.value
@@ -101,6 +112,7 @@ const rowActionItems = computed(() => {
 })
 
 function toggleRowActionMenu(event, torrent) {
+  blurSearch()
   rowActionTorrent.value = torrent
   rowActionMenu.value?.toggle(event)
 }
@@ -147,6 +159,7 @@ function getSelectedHashes() {
 }
 
 async function handlePauseSelected() {
+  blurSearch()
   const hashes = getSelectedHashes()
   if (!hashes.length) return
 
@@ -163,6 +176,7 @@ async function handlePauseSelected() {
 }
 
 async function handleResumeSelected() {
+  blurSearch()
   const hashes = getSelectedHashes()
   if (!hashes.length) return
 
@@ -185,6 +199,7 @@ function openDeleteDialog(hashes) {
 }
 
 function askDeleteSelected() {
+  blurSearch()
   const hashes = getSelectedHashes()
   if (!hashes.length) return
   openDeleteDialog(hashes)
@@ -369,10 +384,12 @@ onBeforeUnmount(() => {
         </div>
 
         <InputText
+          ref="searchInputRef"
           v-model="search"
           placeholder="Пошук торентів"
           size="small"
           fluid
+          @keydown.enter="blurSearch"
         />
       </div>
     </div>
