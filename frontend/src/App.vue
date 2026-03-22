@@ -9,6 +9,7 @@ import NetworkView from './views/NetworkView.vue'
 import { fetchMetrics } from './api/metrics'
 import { formatCollectedAt, formatUptime } from './utils/formatters'
 import { useMetricsHistory } from './composables/useMetricsHistory'
+import mykolaImage from './assets/mykola-1.png'
 
 const tg = window.Telegram?.WebApp
 tg?.ready()
@@ -85,7 +86,7 @@ onBeforeUnmount(() => {
       :hostname="metrics.system?.hostname || '—'"
       :uptime="heroUptime"
       :local-ip="heroIp"
-      hero-image="/hero.png"
+      :hero-image="mykolaImage"
     />
 
     <div class="top-actions">
