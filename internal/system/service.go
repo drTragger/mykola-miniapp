@@ -533,38 +533,20 @@ func fillUsers(resp *Response) {
 func getLoggedInUsers() ([]UserSession, error) {
 	out, err := runCommand(3, "who", "--ips")
 	if err != nil || strings.TrimSpace(out) == "" {
-		return []UserSession{}, nil
+		out, err = runCommand(3, "who")
+		if err != nil || strings.TrimSpace(out) == "" {
+			return []UserSession{}, nil
+		}
 	}
 
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	result := make([]UserSession, 0, len(lines))
 
 	for _, line := range lines {
-		fields := strings.Fields(line)
-		if len(fields) < 5 {
+		session, ok := parseWhoLine(line)
+		if !ok {
 			continue
 		}
-
-		username := fields[0]
-		tty := fields[1]
-		datePart := fields[2]
-		timePart := fields[3]
-		from := strings.Trim(fields[4], "()")
-
-		loginAt := fmt.Sprintf("%s %s", datePart, timePart)
-
-		session := UserSession{
-			Username:       username,
-			TTY:            tty,
-			From:           from,
-			RemoteIP:       normalizeRemoteIP(from),
-			LoginAt:        loginAt,
-			Idle:           "—",
-			ConnectionType: detectConnectionType(tty, from),
-			IsLocal:        isLocalSession(tty, from),
-			Location:       "—",
-		}
-
 		result = append(result, session)
 	}
 
@@ -577,6 +559,39 @@ func getLoggedInUsers() ([]UserSession, error) {
 	}
 
 	return result, nil
+}
+
+func parseWhoLine(line string) (UserSession, bool) {
+	fields := strings.Fields(line)
+	if len(fields) < 4 {
+		return UserSession{}, false
+	}
+
+	username := fields[0]
+	tty := fields[1]
+	datePart := fields[2]
+	timePart := fields[3]
+
+	from := ""
+	if len(fields) >= 5 {
+		from = strings.Trim(fields[4], "()")
+	}
+
+	loginAt := fmt.Sprintf("%s %s", datePart, timePart)
+
+	session := UserSession{
+		Username:       username,
+		TTY:            tty,
+		From:           from,
+		RemoteIP:       normalizeRemoteIP(from),
+		LoginAt:        loginAt,
+		Idle:           "—",
+		ConnectionType: detectConnectionType(tty, from),
+		IsLocal:        isLocalSession(tty, from),
+		Location:       "—",
+	}
+
+	return session, true
 }
 
 func detectConnectionType(tty, from string) string {
