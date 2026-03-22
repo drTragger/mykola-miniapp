@@ -21,6 +21,7 @@ tg?.expand()
 const activeTab = ref('overview')
 const status = ref('Завантаження...')
 const lastUpdated = ref('—')
+
 const metricsIntervalId = ref(null)
 const heroBatteryIntervalId = ref(null)
 
