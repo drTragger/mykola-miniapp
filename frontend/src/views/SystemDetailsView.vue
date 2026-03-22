@@ -89,23 +89,32 @@ const networkRows = computed(() => [
   { label: 'TX швидкість', value: txSpeedText.value }
 ])
 
+function normalizeConnectionType(type) {
+  return String(type || '').trim().toLowerCase()
+}
+
 function connectionLabel(type) {
-  if (type === 'ssh') return 'SSH'
-  if (type === 'local') return 'Локально'
-  if (type === 'terminal') return 'Термінал'
+  const normalizedType = normalizeConnectionType(type)
+
+  if (normalizedType === 'ssh') return 'SSH'
+  if (normalizedType === 'local') return 'Локально'
+  if (normalizedType === 'terminal') return 'Термінал'
+
   return type || 'Невідомо'
 }
 
 function connectionBadgeClass(type) {
-  if (type === 'ssh') {
+  const normalizedType = normalizeConnectionType(type)
+
+  if (normalizedType === 'ssh') {
     return 'bg-cyan-500/10 text-cyan-300 border-cyan-500/20'
   }
 
-  if (type === 'local') {
+  if (normalizedType === 'local') {
     return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
   }
 
-  if (type === 'terminal') {
+  if (normalizedType === 'terminal') {
     return 'bg-violet-500/10 text-violet-300 border-violet-500/20'
   }
 
@@ -113,9 +122,12 @@ function connectionBadgeClass(type) {
 }
 
 function connectionIcon(type) {
-  if (type === 'ssh') return '🖥️'
-  if (type === 'local') return '💻'
-  if (type === 'terminal') return '⌨️'
+  const normalizedType = normalizeConnectionType(type)
+
+  if (normalizedType === 'ssh') return '🖥️'
+  if (normalizedType === 'local') return '💻'
+  if (normalizedType === 'terminal') return '⌨️'
+
   return '👤'
 }
 </script>
@@ -210,10 +222,11 @@ function connectionIcon(type) {
             </div>
 
             <div
-              class="inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] shrink-0"
+              class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] shrink-0"
               :class="connectionBadgeClass(user.connectionType)"
             >
-              {{ connectionLabel(user.connectionType) }}
+              <span>{{ connectionIcon(user.connectionType) }}</span>
+              <span>{{ connectionLabel(user.connectionType) }}</span>
             </div>
           </div>
 
