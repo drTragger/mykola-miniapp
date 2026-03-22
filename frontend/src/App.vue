@@ -65,8 +65,10 @@ const heroBatteryPercent = computed(() => {
   return heroBattery.value?.batteryPercent ?? null
 })
 
+const metricsRefreshing = ref(false)
+
 async function loadMetrics() {
-  status.value = 'Оновлення...'
+  metricsRefreshing.value = true
 
   try {
     const data = await fetchMetrics()
@@ -77,6 +79,8 @@ async function loadMetrics() {
   } catch (error) {
     console.error(error)
     status.value = 'Помилка'
+  } finally {
+    metricsRefreshing.value = false
   }
 }
 
@@ -142,6 +146,7 @@ onBeforeUnmount(() => {
       :uptime="heroUptime"
       :hero-image="mykolaImage"
       :battery-percent="heroBatteryPercent"
+      :refreshing="metricsRefreshing"
       @refresh="loadMetrics"
     />
 

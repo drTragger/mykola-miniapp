@@ -10,6 +10,10 @@ const props = defineProps({
   batteryPercent: {
     type: Number,
     default: null
+  },
+  refreshing: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -77,7 +81,7 @@ const batteryStyle = computed(() => {
     class="relative overflow-hidden rounded-3xl p-4 sm:p-5 border border-white/10 bg-white/[0.02] backdrop-blur"
   >
     <Button
-      icon="pi pi-refresh"
+      :icon="refreshing ? 'pi pi-spin pi-spinner' : 'pi pi-refresh'"
       size="small"
       text
       rounded
@@ -124,11 +128,11 @@ const batteryStyle = computed(() => {
         </div>
 
         <div
-          class="flex items-center gap-2 rounded-full px-3 py-1.5"
+          class="flex items-center justify-center gap-2 rounded-full px-3 py-1.5"
           :style="statusWrapperStyle"
         >
           <span class="w-2 h-2 rounded-full" :style="statusDotStyle"></span>
-          <span class="text-xs font-semibold">{{ status }}</span>
+         <span class="text-xs font-semibold text-center whitespace-nowrap">{{ status }}</span>
         </div>
       </div>
     </div>
@@ -148,11 +152,11 @@ const batteryStyle = computed(() => {
       </div>
 
       <div
-        class="flex items-center gap-2 rounded-full px-3 py-1.5"
+        class="flex items-center justify-center gap-2 rounded-full px-3 py-1.5"
         :style="statusWrapperStyle"
       >
-        <span class="w-2 h-2 rounded-full" :style="statusDotStyle"></span>
-        <span class="text-xs font-semibold">{{ status }}</span>
+        <span class="w-2 h-2 rounded-full shrink-0" :style="statusDotStyle"></span>
+        <span class="text-xs font-semibold text-center whitespace-nowrap">{{ status }}</span>
       </div>
     </div>
   </section>
