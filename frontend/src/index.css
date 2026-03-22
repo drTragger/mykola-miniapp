@@ -20,6 +20,10 @@
 }
 
 @layer utilities {
+  .app-shell {
+    padding-top: calc(var(--tg-safe-top, 0px) + 16px);
+  }
+
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;

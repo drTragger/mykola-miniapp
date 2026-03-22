@@ -252,9 +252,3 @@ onBeforeUnmount(() => {
     <BottomNav v-model="activeTab" />
   </div>
 </template>
-
-<style>
-.app-shell {
-  padding-top: calc(var(--tg-safe-top, 0px) + 16px);
-}
-</style>
