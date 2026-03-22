@@ -15,11 +15,12 @@ const items = computed(() => [
 </script>
 
 <template>
-  <section class="grid-single">
-    <InfoListCard label="Мережа" :items="items" />
-
-    <div class="footer-note">
-      Далі сюди можна додати ping, RX/TX, зовнішній IP, статус Jellyfin, qBittorrent, Sonarr і решту сервісів.
+  <section class="space-y-4">
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <InfoListCard label="Мережа" :items="items" />
     </div>
+    <p class="text-sm text-white/60">
+      Далі сюди можна додати ping, RX/TX, зовнішній IP, статус Jellyfin, qBittorrent, Sonarr і решту сервісів.
+    </p>
   </section>
 </template>

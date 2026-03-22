@@ -12,10 +12,14 @@ defineProps({
 </script>
 
 <template>
-  <div class="app-topbar">
+  <div class="flex items-center justify-between mb-4">
     <div>
-      <div class="app-topbar-title">Mykola Hub</div>
-      <div class="app-topbar-subtitle">{{ subtitle }}</div>
+      <div class="text-sm font-bold uppercase tracking-wider text-white/60">
+        Mykola Hub
+      </div>
+      <div class="mt-1 text-sm text-white/50">
+        {{ subtitle }}
+      </div>
     </div>
   </div>
 </template>

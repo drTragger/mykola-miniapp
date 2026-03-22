@@ -6,6 +6,8 @@ type Response struct {
 	Overview    OverviewMetrics `json:"overview"`
 	System      SystemMetrics   `json:"system"`
 	Network     NetworkMetrics  `json:"network"`
+	Services    ServicesMetrics `json:"services"`
+	VPN         VPNMetrics      `json:"vpn"`
 	Error       string          `json:"error,omitempty"`
 }
 
@@ -38,5 +40,29 @@ type SystemMetrics struct {
 }
 
 type NetworkMetrics struct {
-	LocalIPv4 string `json:"localIpv4"`
+	LocalIPv4    string  `json:"localIpv4"`
+	PublicIP     string  `json:"publicIp"`
+	PingMs       float64 `json:"pingMs"`
+	RxBytesTotal uint64  `json:"rxBytesTotal"`
+	TxBytesTotal uint64  `json:"txBytesTotal"`
+	RxSpeedBps   float64 `json:"rxSpeedBps"`
+	TxSpeedBps   float64 `json:"txSpeedBps"`
+	RxTotalHuman string  `json:"rxTotalHuman"`
+	TxTotalHuman string  `json:"txTotalHuman"`
+	RxSpeedHuman string  `json:"rxSpeedHuman"`
+	TxSpeedHuman string  `json:"txSpeedHuman"`
+}
+
+type ServicesMetrics struct {
+	Jellyfin    bool `json:"jellyfin"`
+	QBittorrent bool `json:"qBittorrent"`
+	Sonarr      bool `json:"sonarr"`
+	Radarr      bool `json:"radarr"`
+	Prowlarr    bool `json:"prowlarr"`
+	Fail2ban    bool `json:"fail2ban"`
+}
+
+type VPNMetrics struct {
+	OK               bool   `json:"ok"`
+	LastHandshakeAgo string `json:"lastHandshakeAgo"`
 }

@@ -38,7 +38,7 @@ const loadItems = computed(() => [
 </script>
 
 <template>
-  <section class="grid-single">
+  <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
     <InfoListCard label="Система" :items="systemItems" />
     <InfoListCard label="CPU" :items="cpuItems" />
     <InfoListCard label="Load Average" :items="loadItems" />

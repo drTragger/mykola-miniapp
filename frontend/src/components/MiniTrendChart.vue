@@ -1,6 +1,6 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import * as echarts from 'echarts'
+import { computed } from 'vue'
+import Chart from 'primevue/chart'
 
 const props = defineProps({
   title: {
@@ -25,101 +25,94 @@ const props = defineProps({
   }
 })
 
-const chartEl = ref(null)
-let chartInstance = null
-
-function renderChart() {
-  if (!chartEl.value) return
-
-  if (!chartInstance) {
-    chartInstance = echarts.init(chartEl.value)
+function hexToRgba(hex, alpha) {
+  let h = hex.replace('#', '')
+  if (h.length === 3) {
+    h = h.split('').map((ch) => ch + ch).join('')
   }
+  const bigint = parseInt(h, 16)
+  const r = (bigint >> 16) & 255
+  const g = (bigint >> 8) & 255
+  const b = bigint & 255
 
-  chartInstance.setOption({
-    backgroundColor: 'transparent',
-    grid: {
-      top: 18,
-      left: 8,
-      right: 8,
-      bottom: 8,
-      containLabel: false
-    },
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
+const labels = computed(() => props.points.map((p) => p.time))
+const values = computed(() => props.points.map((p) => p.value))
+
+const chartData = computed(() => ({
+  labels: labels.value,
+  datasets: [
+    {
+      data: values.value,
+      fill: true,
+      borderColor: props.color,
+      backgroundColor: hexToRgba(props.color, 0.12),
+      tension: 0.35,
+      borderWidth: 3,
+      pointRadius: 0,
+      pointHoverRadius: 3,
+      clip: 0
+    }
+  ]
+}))
+
+const chartOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  animation: false,
+  layout: {
+    padding: {
+      top: 4,
+      right: 4,
+      bottom: 0,
+      left: 4
+    }
+  },
+  plugins: {
+    legend: { display: false },
     tooltip: {
-      trigger: 'axis',
-      backgroundColor: '#111827',
-      borderColor: 'rgba(255,255,255,0.08)',
-      textStyle: {
-        color: '#fff'
-      },
-      formatter: (params) => {
-        const point = params?.[0]
-        if (!point) return ''
-        return `${point.axisValue}<br/>${props.formatter(point.data)}`
+      displayColors: false,
+      callbacks: {
+        label: (context) => props.formatter(context.parsed.y)
       }
+    }
+  },
+  scales: {
+    x: {
+      display: false,
+      grid: { display: false },
+      border: { display: false }
     },
-    xAxis: {
-      type: 'category',
-      boundaryGap: false,
-      data: props.points.map((item) => item.time),
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: { show: false }
-    },
-    yAxis: {
-      type: 'value',
-      axisLine: { show: false },
-      axisTick: { show: false },
-      splitLine: {
-        lineStyle: {
-          color: 'rgba(255,255,255,0.05)'
-        }
-      },
-      axisLabel: { show: false }
-    },
-    series: [
-      {
-        type: 'line',
-        smooth: true,
-        symbol: 'none',
-        data: props.points.map((item) => item.value),
-        lineStyle: {
-          width: 3,
-          color: props.color
-        },
-        areaStyle: {
-          opacity: 0.16,
-          color: props.color
-        }
-      }
-    ]
-  })
-}
-
-function handleResize() {
-  chartInstance?.resize()
-}
-
-watch(() => props.points, renderChart, { deep: true })
-
-onMounted(() => {
-  renderChart()
-  window.addEventListener('resize', handleResize)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', handleResize)
-  chartInstance?.dispose()
-  chartInstance = null
-})
+    y: {
+      display: false,
+      grid: { display: false },
+      border: { display: false }
+    }
+  }
+}))
 </script>
 
 <template>
-  <div class="trend-card">
-    <div class="trend-card-header">
-      <div class="trend-card-title">{{ title }}</div>
-      <div class="trend-card-subtitle">{{ subtitle }}</div>
+  <div
+    class="bg-panel rounded-2xl p-3 shadow-custom border border-white/10 flex flex-col overflow-hidden min-h-[150px]"
+  >
+    <div class="text-[10px] sm:text-xs uppercase tracking-wide text-white/70 mb-1">
+      {{ title }}
     </div>
 
-    <div ref="chartEl" class="trend-chart"></div>
+    <div class="text-[10px] sm:text-xs text-white/50 mb-2">
+      {{ subtitle }}
+    </div>
+
+    <div class="h-24 sm:h-28 relative overflow-hidden">
+      <Chart
+        type="line"
+        :data="chartData"
+        :options="chartOptions"
+        class="w-full h-full"
+      />
+    </div>
   </div>
 </template>

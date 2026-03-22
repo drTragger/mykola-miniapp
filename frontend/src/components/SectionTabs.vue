@@ -9,9 +9,9 @@ defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const tabs = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'system', label: 'System' },
-  { key: 'network', label: 'Network' }
+  { key: 'overview', label: 'Огляд' },
+  { key: 'system', label: 'Система' },
+  { key: 'network', label: 'Мережа' }
 ]
 </script>
 

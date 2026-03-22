@@ -9,11 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "echarts": "^6.0.0",
-    "vue": "^3.5.30"
+    "vue": "^3.5.30",
+    "primevue": "^4.5.4",
+    "primeicons": "^7.0.0",
+    "chart.js": "^4.5.1"
+    ,"@primevue/themes": "^4.5.4"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.5",
-    "vite": "^8.0.1"
+    "vite": "^8.0.1",
+    "tailwindcss": "^3.4.4",
+    "postcss": "^8.4.31",
+    "autoprefixer": "^10.4.16"
   }
 }

@@ -15,7 +15,7 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := metrics.Collect()
+	data, err := metrics.GetSnapshot()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, metrics.Response{
 			OK:    false,

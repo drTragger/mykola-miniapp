@@ -46,7 +46,6 @@ const subtitle = computed(() => {
 
 const heroTitle = computed(() => metrics.value.system?.hostname || 'mykola-1')
 const heroUptime = computed(() => formatUptime(metrics.value.overview?.uptimeSeconds || 0))
-const heroIp = computed(() => metrics.value.network?.localIpv4 || '—')
 
 async function loadMetrics() {
   status.value = 'Оновлення...'
@@ -76,16 +75,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app shell">
+  <div class="max-w-[920px] mx-auto px-4 pb-32 pt-4 space-y-4">
     <AppHeader :subtitle="subtitle" :status="status" />
 
     <DeviceHero
       :title="heroTitle"
       :subtitle="lastUpdated"
       :status="status"
-      :hostname="metrics.system?.hostname || '—'"
       :uptime="heroUptime"
-      :local-ip="heroIp"
       :hero-image="mykolaImage"
       @refresh="loadMetrics"
     />
