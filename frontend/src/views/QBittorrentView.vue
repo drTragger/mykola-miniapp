@@ -473,30 +473,30 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="mt-3 grid grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-2 text-sm">
-              <div class="text-white/45">Швидкість</div>
-              <div class="text-white text-right xl:text-left xl:col-span-2">
-                ↓ {{ formatSpeed(torrent.dlSpeed) }} · ↑ {{ formatSpeed(torrent.upSpeed) }}
-              </div>
+                <div class="text-white/45">Швидкість</div>
+                <div class="text-white text-right xl:text-left xl:col-span-2 whitespace-nowrap text-[13px] sm:text-sm">
+                    ↓ {{ formatSpeed(torrent.dlSpeed) }} · ↑ {{ formatSpeed(torrent.upSpeed) }}
+                </div>
 
-              <div class="text-white/45">Розмір</div>
-              <div class="text-white text-right xl:text-left xl:col-span-2 break-words">
-                {{ formatBytes(torrent.downloaded) }} / {{ formatBytes(torrent.totalSize || torrent.size) }}
-              </div>
+                <div class="text-white/45">Розмір</div>
+                <div class="text-white text-right xl:text-left xl:col-span-2 break-words text-[13px] sm:text-sm">
+                    {{ formatBytes(torrent.downloaded) }} / {{ formatBytes(torrent.totalSize || torrent.size) }}
+                </div>
 
-              <div class="text-white/45">ETA</div>
-              <div class="text-white text-right xl:text-left xl:col-span-2">
-                {{ formatEta(torrent.eta) }}
-              </div>
+                <div class="text-white/45">ETA</div>
+                <div class="text-white text-right xl:text-left xl:col-span-2 text-[13px] sm:text-sm">
+                    {{ formatEta(torrent.eta) }}
+                </div>
 
-              <div class="text-white/45">Seeds / Leechs</div>
-              <div class="text-white text-right xl:text-left xl:col-span-2">
-                {{ torrent.numSeeds ?? 0 }} / {{ torrent.numLeechs ?? 0 }}
-              </div>
+                <div class="text-white/45">Seeds / Leechs</div>
+                <div class="text-white text-right xl:text-left xl:col-span-2 whitespace-nowrap text-[13px] sm:text-sm">
+                    {{ torrent.numSeeds ?? 0 }} / {{ torrent.numLeechs ?? 0 }}
+                </div>
 
-              <div class="text-white/45">Ratio</div>
-              <div class="text-white text-right xl:text-left xl:col-span-2">
-                {{ formatRatio(torrent.ratio) }}
-              </div>
+                <div class="text-white/45">Ratio</div>
+                <div class="text-white text-right xl:text-left xl:col-span-2 whitespace-nowrap text-[13px] sm:text-sm">
+                    {{ formatRatio(torrent.ratio) }}
+                </div>
             </div>
           </div>
         </div>
