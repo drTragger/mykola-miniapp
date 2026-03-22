@@ -16,9 +16,9 @@ defineProps({
 </script>
 
 <template>
-  <div class="card">
-    <div class="card-label">{{ label }}</div>
-    <div class="card-value">{{ value }}</div>
-    <div class="card-subvalue">{{ subvalue }}</div>
+  <div class="metric-card">
+    <div class="metric-card-label">{{ label }}</div>
+    <div class="metric-card-value">{{ value }}</div>
+    <div class="metric-card-subvalue">{{ subvalue }}</div>
   </div>
 </template>

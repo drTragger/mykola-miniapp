@@ -12,11 +12,10 @@ defineProps({
 </script>
 
 <template>
-  <div class="header">
-    <div class="title-row">
-      <div class="title">Mykola Hub</div>
-      <div class="status-chip">{{ status }}</div>
+  <div class="app-topbar">
+    <div>
+      <div class="app-topbar-title">Mykola Hub</div>
+      <div class="app-topbar-subtitle">{{ subtitle }}</div>
     </div>
-    <div class="subtitle">{{ subtitle }}</div>
   </div>
 </template>
