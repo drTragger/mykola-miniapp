@@ -64,5 +64,7 @@ type ServicesMetrics struct {
 
 type VPNMetrics struct {
 	OK               bool   `json:"ok"`
+	Status           bool   `json:"status"`
+	RouteOK          bool   `json:"routeOk"`
 	LastHandshakeAgo string `json:"lastHandshakeAgo"`
 }

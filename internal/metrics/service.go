@@ -149,11 +149,120 @@ func fillServices(resp *Response) {
 }
 
 func fillVPN(resp *Response) {
-	ok, ago := detectWireGuardHandshake()
+	serviceUp := isVPNServiceActive()
+	handshakeAgo, handshakeOk := getWireGuardHandshakeAgo()
+	routeOK := hasDefaultRouteViaWG()
+
 	resp.VPN = VPNMetrics{
-		OK:               ok,
-		LastHandshakeAgo: ago,
+		OK:               serviceUp && handshakeOk && routeOK,
+		Status:           serviceUp,
+		RouteOK:          routeOK,
+		LastHandshakeAgo: handshakeAgo,
 	}
+}
+
+func isVPNServiceActive() bool {
+	out, err := exec.Command("systemctl", "is-active", "wg-quick@wg0").Output()
+	if err != nil {
+		return false
+	}
+
+	return strings.TrimSpace(string(out)) == "active"
+}
+
+func getWireGuardHandshakeAgo() (string, bool) {
+	out, err := runSudoCommand(2, "wg", "show", "wg0", "dump")
+	if err != nil || strings.TrimSpace(out) == "" {
+		return "", false
+	}
+
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) < 2 {
+		return "", false
+	}
+
+	var latest int64
+
+	for _, line := range lines[1:] {
+		fields := strings.Fields(line)
+		if len(fields) < 8 {
+			continue
+		}
+
+		handshakeUnix, err := strconv.ParseInt(fields[4], 10, 64)
+		if err != nil || handshakeUnix == 0 {
+			continue
+		}
+
+		if handshakeUnix > latest {
+			latest = handshakeUnix
+		}
+	}
+
+	if latest == 0 {
+		return "ніколи", false
+	}
+
+	diff := time.Since(time.Unix(latest, 0))
+	if diff < 0 {
+		diff = 0
+	}
+
+	return humanizeDurationShort(diff) + " тому", diff <= 3*time.Minute
+}
+
+func hasDefaultRouteViaWG() bool {
+	out, err := exec.Command("ip", "route", "show", "table", "vpn").Output()
+	if err != nil {
+		return false
+	}
+
+	return strings.Contains(strings.TrimSpace(string(out)), "default dev wg0")
+}
+
+func humanizeDurationShort(d time.Duration) string {
+	if d < 0 {
+		return "н/д"
+	}
+
+	seconds := int(d.Seconds())
+	if seconds < 60 {
+		if seconds < 1 {
+			seconds = 1
+		}
+		return fmt.Sprintf("%dс", seconds)
+	}
+
+	minutes := seconds / 60
+	if minutes < 60 {
+		return fmt.Sprintf("%dхв", minutes)
+	}
+
+	hours := minutes / 60
+	minutes = minutes % 60
+	if hours < 24 {
+		return fmt.Sprintf("%dг %dхв", hours, minutes)
+	}
+
+	days := hours / 24
+	hours = hours % 24
+	return fmt.Sprintf("%dд %dг", days, hours)
+}
+
+func runSudoCommand(timeoutSec int, cmd string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
+	defer cancel()
+
+	allArgs := append([]string{"-n", cmd}, args...)
+	out, err := exec.CommandContext(ctx, "sudo", allArgs...).CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return "", fmt.Errorf("command timeout")
+	}
+	if err != nil {
+		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+
+	return strings.TrimSpace(string(out)), nil
 }
 
 func detectLocalIPv4() string {
@@ -277,61 +386,6 @@ func isServiceActive(name string) bool {
 	}
 
 	return strings.TrimSpace(string(out)) == "active"
-}
-
-func detectWireGuardHandshake() (bool, string) {
-	out, err := exec.Command("wg", "show", "all", "latest-handshakes").Output()
-	if err != nil {
-		return false, ""
-	}
-
-	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
-	var latest int64
-
-	for _, line := range lines {
-		fields := strings.Fields(line)
-		if len(fields) < 3 {
-			continue
-		}
-
-		ts, err := strconv.ParseInt(fields[2], 10, 64)
-		if err != nil || ts <= 0 {
-			continue
-		}
-
-		if ts > latest {
-			latest = ts
-		}
-	}
-
-	if latest == 0 {
-		return false, ""
-	}
-
-	diff := time.Since(time.Unix(latest, 0))
-	if diff < 0 {
-		diff = 0
-	}
-
-	return diff <= 3*time.Minute, humanAgo(diff)
-}
-
-func humanAgo(d time.Duration) string {
-	if d < time.Minute {
-		sec := int(d.Seconds())
-		if sec < 1 {
-			sec = 1
-		}
-		return fmt.Sprintf("%dс тому", sec)
-	}
-
-	if d < time.Hour {
-		min := int(d.Minutes())
-		return fmt.Sprintf("%dхв тому", min)
-	}
-
-	hours := int(d.Hours())
-	return fmt.Sprintf("%dг тому", hours)
 }
 
 func humanBytes(v uint64) string {
