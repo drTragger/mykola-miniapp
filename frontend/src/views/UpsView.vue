@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import ProgressBar from 'primevue/progressbar'
+import batteryIcon from '../assets/battery.png'
 
 const props = defineProps({
   ups: {
@@ -111,9 +112,13 @@ function normalizeCellMv(mv) {
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div class="flex items-center gap-4">
             <div
-              class="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/10 border border-white/10 flex items-center justify-center text-2xl"
+              class="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/10 border border-white/10 flex items-center justify-center"
             >
-              🔋
+              <img
+                :src="batteryIcon"
+                alt="battery"
+                class="w-20 h-20 object-cover opacity-90"
+              />
             </div>
 
             <div>
