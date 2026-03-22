@@ -9,6 +9,7 @@ import (
 	"github.com/drTragger/mykola-miniapp/internal/httpapi"
 	"github.com/drTragger/mykola-miniapp/internal/metrics"
 	"github.com/drTragger/mykola-miniapp/internal/system"
+	"github.com/drTragger/mykola-miniapp/internal/telegram"
 	"github.com/drTragger/mykola-miniapp/internal/ups"
 )
 
@@ -19,14 +20,16 @@ func main() {
 	ups.StartBackgroundRefresh(5 * time.Second)
 	system.StartBackgroundRefresh(15 * time.Second)
 
+	go telegram.StartBot(cfg)
+
 	handler, err := httpapi.NewRouter()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Println("Mini App server started on", cfg.AppAddr)
+	log.Println("Mini App server started on", cfg.App.Addr)
 
-	if err := http.ListenAndServe(cfg.AppAddr, handler); err != nil {
+	if err := http.ListenAndServe(cfg.App.Addr, handler); err != nil {
 		log.Fatal(err)
 	}
 }

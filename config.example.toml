@@ -1,0 +1,6 @@
+[app]
+addr = ":8090"
+
+[telegram]
+token = "YOUR_TELEGRAM_BOT_TOKEN"
+admin_ids = [123456789]
