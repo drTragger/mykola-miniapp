@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import MetricCard from '../components/MetricCard.vue'
+import ProgressBar from 'primevue/progressbar'
 
 const props = defineProps({
   ups: {
@@ -19,14 +19,17 @@ const props = defineProps({
 
 const data = computed(() => props.ups?.data ?? null)
 
+const batteryPercent = computed(() => data.value?.batteryPercent ?? 0)
+
 const batteryValue = computed(() => {
   if (!data.value) return '—'
   return `${data.value.batteryPercent}%`
 })
 
-const batterySubvalue = computed(() => {
+const batteryCapacityText = computed(() => {
   if (!data.value) return ''
-  return `${data.value.remainingMAh} mAh`
+  if (!data.value.fullCapacityMAh) return `${data.value.remainingMAh} mAh`
+  return `${data.value.remainingMAh} / ${data.value.fullCapacityMAh} mAh`
 })
 
 const vbusValue = computed(() => {
@@ -34,9 +37,14 @@ const vbusValue = computed(() => {
   return `${data.value.vbusVoltageV.toFixed(3)} V`
 })
 
-const vbusSubvalue = computed(() => {
-  if (!data.value) return ''
-  return `${data.value.vbusCurrentA.toFixed(3)} A · ${data.value.vbusPowerW.toFixed(3)} W`
+const vbusCurrentText = computed(() => {
+  if (!data.value) return '—'
+  return `${data.value.vbusCurrentA.toFixed(3)} A`
+})
+
+const vbusPowerText = computed(() => {
+  if (!data.value) return '—'
+  return `${data.value.vbusPowerW.toFixed(3)} W`
 })
 
 const batteryElectricalValue = computed(() => {
@@ -44,15 +52,42 @@ const batteryElectricalValue = computed(() => {
   return `${data.value.batteryVoltageV.toFixed(3)} V`
 })
 
-const batteryElectricalSubvalue = computed(() => {
-  if (!data.value) return ''
+const batteryElectricalCurrent = computed(() => {
+  if (!data.value) return '—'
   return `${data.value.batteryCurrentA.toFixed(3)} A`
 })
 
-const cellsValue = computed(() => {
-  if (!data.value) return '—'
-  return `${data.value.cell1Mv} | ${data.value.cell2Mv} | ${data.value.cell3Mv} | ${data.value.cell4Mv} mV`
+const cells = computed(() => {
+  if (!data.value) return []
+
+  const raw = [
+    { label: 'Банка 1', value: data.value.cell1Mv },
+    { label: 'Банка 2', value: data.value.cell2Mv },
+    { label: 'Банка 3', value: data.value.cell3Mv },
+    { label: 'Банка 4', value: data.value.cell4Mv }
+  ]
+
+  return raw.map((cell) => ({
+    ...cell,
+    percent: normalizeCellMv(cell.value)
+  }))
 })
+
+const deltaSeverityClass = computed(() => {
+  const delta = data.value?.cellDeltaMv ?? 0
+
+  if (delta < 50) return 'bg-green-500/10 text-green-300 border-green-500/20'
+  if (delta < 100) return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+  if (delta < 200) return 'bg-yellow-500/10 text-yellow-300 border-yellow-500/20'
+  return 'bg-red-500/10 text-red-300 border-red-500/20'
+})
+
+function normalizeCellMv(mv) {
+  const min = 3000
+  const max = 4200
+  const value = ((mv - min) / (max - min)) * 100
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
 </script>
 
 <template>
@@ -72,57 +107,220 @@ const cellsValue = computed(() => {
     </div>
 
     <template v-else-if="data">
-      <div class="grid grid-cols-2 xl:grid-cols-4 gap-3">
-        <MetricCard
-          label="Режим"
-          :value="data.modeText"
-          :subvalue="data.powerSourceText"
-        />
+      <div class="bg-panel rounded-3xl border border-white/10 shadow-custom p-4">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div class="flex items-center gap-4">
+            <div
+              class="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/10 border border-white/10 flex items-center justify-center text-2xl"
+            >
+              🔋
+            </div>
 
-        <MetricCard
-          label="Заряд"
-          :value="batteryValue"
-          :subvalue="batterySubvalue"
-        />
+            <div>
+              <div class="text-[10px] uppercase tracking-[0.2em] text-white/50 mb-1">
+                UPS HAT (E)
+              </div>
+              <div class="text-2xl sm:text-3xl font-bold text-white">
+                {{ batteryValue }}
+              </div>
+              <div class="text-sm text-white/50 mt-1">
+                {{ batteryCapacityText }}
+              </div>
+            </div>
+          </div>
 
-        <MetricCard
-          label="VBUS"
-          :value="vbusValue"
-          :subvalue="vbusSubvalue"
-        />
+          <div class="flex flex-wrap gap-2">
+            <div class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70">
+              {{ data.modeText }}
+            </div>
 
-        <MetricCard
-          label="Батарея"
-          :value="batteryElectricalValue"
-          :subvalue="batteryElectricalSubvalue"
-        />
+            <div class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70">
+              {{ data.powerSourceText }}
+            </div>
+
+            <div class="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-white/70">
+              {{ data.chargeText }}
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-4">
+          <ProgressBar
+            :value="batteryPercent"
+            :showValue="false"
+            class="ups-battery-bar"
+          />
+          <div class="mt-2 flex justify-between text-xs text-white/40">
+            <span>0%</span>
+            <span>100%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-panel rounded-2xl border border-white/10 shadow-custom p-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="text-[10px] uppercase tracking-wide text-white/50 mb-1">
+                VBUS
+              </div>
+              <div class="text-xl sm:text-2xl font-semibold text-white leading-none">
+                {{ vbusValue }}
+              </div>
+            </div>
+
+            <div
+              class="w-9 h-9 rounded-xl bg-cyan-400/10 border border-cyan-300/10 flex items-center justify-center text-cyan-300 shrink-0"
+            >
+              ⚡
+            </div>
+          </div>
+
+          <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div class="rounded-xl bg-white/5 border border-white/10 px-2 py-1.5">
+              <div class="text-[10px] uppercase tracking-wide text-white/40">
+                Струм
+              </div>
+              <div class="text-sm font-medium text-white mt-1 leading-none">
+                {{ vbusCurrentText }}
+              </div>
+            </div>
+
+            <div class="rounded-xl bg-white/5 border border-white/10 px-2 py-1.5">
+              <div class="text-[10px] uppercase tracking-wide text-white/40">
+                Потужність
+              </div>
+              <div class="text-sm font-medium text-white mt-1 leading-none">
+                {{ vbusPowerText }}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-panel rounded-2xl border border-white/10 shadow-custom p-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="text-[10px] uppercase tracking-wide text-white/50 mb-1">
+                Батарея
+              </div>
+              <div class="text-xl sm:text-2xl font-semibold text-white leading-none">
+                {{ batteryElectricalValue }}
+              </div>
+            </div>
+
+            <div
+              class="w-9 h-9 rounded-xl bg-emerald-400/10 border border-emerald-300/10 flex items-center justify-center text-emerald-300 shrink-0"
+            >
+              🔋
+            </div>
+          </div>
+
+          <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div class="rounded-xl bg-white/5 border border-white/10 px-2 py-1.5">
+              <div class="text-[10px] uppercase tracking-wide text-white/40">
+                Струм
+              </div>
+              <div class="text-sm font-medium text-white mt-1 leading-none">
+                {{ batteryElectricalCurrent }}
+              </div>
+            </div>
+
+            <div class="rounded-xl bg-white/5 border border-white/10 px-2 py-1.5">
+              <div class="text-[10px] uppercase tracking-wide text-white/40">
+                Заряд
+              </div>
+              <div class="text-sm font-medium text-white mt-1 leading-none">
+                {{ batteryValue }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-panel rounded-2xl border border-white/10 shadow-custom p-4">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <div>
+            <div class="text-[10px] uppercase tracking-wide text-white/50">
+              Банки
+            </div>
+            <div class="text-sm text-white/60 mt-1">
+              Напруга по кожній банці
+            </div>
+          </div>
+
+          <div
+            class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs"
+            :class="deltaSeverityClass"
+          >
+            <span class="font-medium">Δ {{ data.cellDeltaText }}</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div
+            v-for="cell in cells"
+            :key="cell.label"
+            class="rounded-xl border border-white/10 bg-white/5 p-3"
+          >
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-sm text-white/70">{{ cell.label }}</span>
+              <span class="text-sm font-semibold text-white">{{ cell.value }} mV</span>
+            </div>
+
+            <ProgressBar
+              :value="cell.percent"
+              :showValue="false"
+              class="ups-cell-bar"
+            />
+          </div>
+        </div>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <MetricCard
-          label="Стан зарядки"
-          :value="data.chargeText"
-        />
+        <div class="bg-panel rounded-2xl border border-white/10 shadow-custom p-4">
+          <div class="text-[10px] uppercase tracking-wide text-white/50 mb-2">
+            Комунікація
+          </div>
+          <div class="text-base font-medium text-white leading-snug">
+            {{ data.commText }}
+          </div>
+        </div>
 
-        <MetricCard
-          label="Дельта банок"
-          :value="`${data.cellDeltaMv} mV`"
-          :subvalue="data.cellDeltaText"
-        />
-      </div>
-
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <MetricCard
-          label="Банки"
-          :value="cellsValue"
-        />
-
-        <MetricCard
-          label="Система"
-          :value="data.commText"
-          :subvalue="`Прошивка: ${data.firmwareText}`"
-        />
+        <div class="bg-panel rounded-2xl border border-white/10 shadow-custom p-4">
+          <div class="text-[10px] uppercase tracking-wide text-white/50 mb-2">
+            Прошивка
+          </div>
+          <div class="text-2xl font-semibold text-white">
+            {{ data.firmwareText }}
+          </div>
+        </div>
       </div>
     </template>
   </section>
 </template>
+
+<style scoped>
+:deep(.ups-battery-bar) {
+  height: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+:deep(.ups-battery-bar .p-progressbar-value) {
+  background: linear-gradient(90deg, #34d399 0%, #22c55e 100%);
+  border-radius: 9999px;
+}
+
+:deep(.ups-cell-bar) {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+:deep(.ups-cell-bar .p-progressbar-value) {
+  background: linear-gradient(90deg, #60a5fa 0%, #22d3ee 100%);
+  border-radius: 9999px;
+}
+</style>

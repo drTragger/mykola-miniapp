@@ -9,6 +9,7 @@ import NetworkView from './views/NetworkView.vue'
 import UpsView from './views/UpsView.vue'
 import { fetchMetrics } from './api/metrics'
 import { fetchUps } from './api/ups'
+import { fetchUpsBattery } from './api/upsBattery'
 import { formatCollectedAt, formatUptime } from './utils/formatters'
 import { useMetricsHistory } from './composables/useMetricsHistory'
 import mykolaImage from './assets/mykola-1.png'
@@ -20,7 +21,8 @@ tg?.expand()
 const activeTab = ref('overview')
 const status = ref('Завантаження...')
 const lastUpdated = ref('—')
-const intervalId = ref(null)
+const metricsIntervalId = ref(null)
+const heroBatteryIntervalId = ref(null)
 
 const metrics = ref({
   overview: {},
@@ -33,6 +35,9 @@ const metrics = ref({
 const ups = ref(null)
 const upsLoading = ref(false)
 const upsError = ref('')
+
+const heroBattery = ref(null)
+const heroBatteryLoading = ref(false)
 
 const {
   cpuUsageHistory,
@@ -54,10 +59,9 @@ const subtitle = computed(() => {
 
 const heroTitle = computed(() => metrics.value.system?.hostname || 'mykola-1')
 const heroUptime = computed(() => formatUptime(metrics.value.overview?.uptimeSeconds || 0))
-const heroIp = computed(() => metrics.value.network?.localIpv4 || '—')
 
 const heroBatteryPercent = computed(() => {
-  return ups.value?.data?.batteryPercent ?? null
+  return heroBattery.value?.batteryPercent ?? null
 })
 
 async function loadMetrics() {
@@ -89,6 +93,18 @@ async function loadUps() {
   }
 }
 
+async function loadHeroBattery() {
+  heroBatteryLoading.value = true
+
+  try {
+    heroBattery.value = await fetchUpsBattery()
+  } catch (error) {
+    console.error(error)
+  } finally {
+    heroBatteryLoading.value = false
+  }
+}
+
 watch(activeTab, async (tab) => {
   if (tab === 'ups' && !ups.value && !upsLoading.value) {
     await loadUps()
@@ -97,12 +113,19 @@ watch(activeTab, async (tab) => {
 
 onMounted(() => {
   loadMetrics()
-  intervalId.value = setInterval(loadMetrics, 5000)
+  loadHeroBattery()
+
+  metricsIntervalId.value = setInterval(loadMetrics, 5000)
+  heroBatteryIntervalId.value = setInterval(loadHeroBattery, 30000)
 })
 
 onBeforeUnmount(() => {
-  if (intervalId.value) {
-    clearInterval(intervalId.value)
+  if (metricsIntervalId.value) {
+    clearInterval(metricsIntervalId.value)
+  }
+
+  if (heroBatteryIntervalId.value) {
+    clearInterval(heroBatteryIntervalId.value)
   }
 })
 </script>
@@ -116,7 +139,6 @@ onBeforeUnmount(() => {
       :subtitle="lastUpdated"
       :status="status"
       :uptime="heroUptime"
-      :local-ip="heroIp"
       :hero-image="mykolaImage"
       :battery-percent="heroBatteryPercent"
       @refresh="loadMetrics"

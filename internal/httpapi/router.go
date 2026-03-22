@@ -24,6 +24,7 @@ func NewRouter() (http.Handler, error) {
 	mux.HandleFunc("/api/health", healthHandler)
 	mux.HandleFunc("/api/metrics", metricsHandler)
 	mux.HandleFunc("/api/ups", upsHandler)
+	mux.HandleFunc("/api/ups/battery", upsBatteryHandler)
 
 	mux.Handle("/assets/", fileServer)
 

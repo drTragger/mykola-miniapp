@@ -9,24 +9,33 @@ defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const items = [
-  { key: 'overview', label: 'Overview', icon: '◉' },
-  { key: 'system', label: 'System', icon: '▣' },
-  { key: 'network', label: 'Network', icon: '◎' },
-  { key: 'ups', label: 'UPS', icon: '◌' }
+  { key: 'overview', label: 'Огляд', icon: 'pi-chart-line' },
+  { key: 'ups', label: 'UPS', icon: 'pi-bolt' },
+  { key: 'system', label: 'Система', icon: 'pi-desktop' },
+  { key: 'network', label: 'Мережа', icon: 'pi-sitemap' },
 ]
 </script>
 
 <template>
-  <nav class="bottom-nav">
-    <button
-      v-for="item in items"
-      :key="item.key"
-      class="bottom-nav-item"
-      :class="{ active: modelValue === item.key }"
-      @click="emit('update:modelValue', item.key)"
-    >
-      <span class="bottom-nav-icon">{{ item.icon }}</span>
-      <span class="bottom-nav-label">{{ item.label }}</span>
-    </button>
+  <nav
+    class="fixed bottom-0 left-0 right-0 bg-panel/80 backdrop-blur-md border-t border-white/10 z-50"
+  >
+    <ul class="grid grid-cols-4 gap-1 px-3 py-2 max-w-[920px] mx-auto">
+      <li v-for="item in items" :key="item.key">
+        <button
+          type="button"
+          class="flex flex-col items-center justify-center gap-1 w-full py-2 rounded-xl transition-colors"
+          :class="
+            modelValue === item.key
+              ? 'bg-primary/20 text-primary'
+              : 'text-white/60 hover:bg-white/10'
+          "
+          @click="emit('update:modelValue', item.key)"
+        >
+          <i :class="['pi', item.icon, 'text-lg']"></i>
+          <span class="text-[11px] sm:text-xs leading-none">{{ item.label }}</span>
+        </button>
+      </li>
+    </ul>
   </nav>
 </template>

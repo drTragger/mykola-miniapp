@@ -6,7 +6,11 @@ const props = defineProps({
   subtitle: String,
   status: String,
   uptime: String,
-  heroImage: String
+  heroImage: String,
+  batteryPercent: {
+    type: Number,
+    default: null
+  }
 })
 
 const emit = defineEmits(['refresh'])
@@ -38,69 +42,117 @@ const statusDotStyle = computed(() =>
         boxShadow: '0 0 10px rgba(248, 113, 113, 0.8)'
       }
 )
+
+const batteryStyle = computed(() => {
+  const p = props.batteryPercent
+
+  if (p === null) return null
+
+  if (p > 60) {
+    return {
+      backgroundColor: 'rgba(34, 197, 94, 0.15)',
+      color: '#86efac',
+      border: '1px solid rgba(34, 197, 94, 0.25)'
+    }
+  }
+
+  if (p > 30) {
+    return {
+      backgroundColor: 'rgba(234, 179, 8, 0.15)',
+      color: '#fde68a',
+      border: '1px solid rgba(234, 179, 8, 0.25)'
+    }
+  }
+
+  return {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+      color: '#fca5a5',
+      border: '1px solid rgba(239, 68, 68, 0.25)'
+    }
+})
 </script>
 
 <template>
   <section
-    class="relative overflow-hidden rounded-3xl p-5 border border-white/10 bg-white/[0.02] backdrop-blur"
+    class="relative overflow-hidden rounded-3xl p-4 sm:p-5 border border-white/10 bg-white/[0.02] backdrop-blur"
   >
-    <div class="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
-      
-      <!-- LEFT -->
-      <div class="flex items-center gap-4">
+    <Button
+      icon="pi pi-refresh"
+      size="small"
+      text
+      rounded
+      aria-label="Оновити"
+      class="!absolute top-3 right-3 z-10"
+      @click="emit('refresh')"
+    />
+
+    <div class="flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3 sm:gap-4 min-w-0">
         <div
-          class="w-16 h-16 rounded-xl overflow-hidden bg-white/10 border border-white/10"
+          class="w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden bg-white/10 border border-white/10 shrink-0"
         >
           <img :src="heroImage" class="w-full h-full object-cover" />
         </div>
 
-        <div>
+        <div class="min-w-0">
           <div class="text-[10px] uppercase tracking-wider text-white/60 mb-1">
             MYKOLA HUB
           </div>
 
-          <h1 class="text-2xl font-bold text-white">
+          <h1 class="text-xl sm:text-2xl font-bold text-white truncate">
             {{ title }}
           </h1>
 
-          <p class="text-xs text-white/50 mt-1">
+          <p class="text-xs text-white/50 mt-1 truncate">
             {{ subtitle }}
           </p>
         </div>
       </div>
 
-      <!-- RIGHT -->
-      <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-        
-        <!-- UPTIME -->
+      <div class="hidden sm:flex items-center gap-2 flex-wrap justify-end pr-10">
         <div class="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/70">
           ⏱ {{ uptime }}
         </div>
 
-        <!-- REFRESH -->
-        <Button
-          icon="pi pi-refresh"
-          size="small"
-          text
-          rounded
-          @click="emit('refresh')"
-        />
+        <div
+          v-if="batteryPercent !== null"
+          class="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs"
+          :style="batteryStyle"
+        >
+          <span>🔋</span>
+          <span class="font-semibold">{{ batteryPercent }}%</span>
+        </div>
 
-        <!-- STATUS -->
         <div
           class="flex items-center gap-2 rounded-full px-3 py-1.5"
           :style="statusWrapperStyle"
         >
-          <span
-            class="w-2 h-2 rounded-full"
-            :style="statusDotStyle"
-          ></span>
-
-          <span class="text-xs font-semibold">
-            {{ status }}
-          </span>
+          <span class="w-2 h-2 rounded-full" :style="statusDotStyle"></span>
+          <span class="text-xs font-semibold">{{ status }}</span>
         </div>
+      </div>
+    </div>
 
+    <div class="mt-4 flex sm:hidden flex-wrap gap-2 pr-10">
+      <div class="px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/70">
+        ⏱ {{ uptime }}
+      </div>
+
+      <div
+        v-if="batteryPercent !== null"
+        class="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs"
+        :style="batteryStyle"
+      >
+        <span>🔋</span>
+        <span class="font-semibold">{{ batteryPercent }}%</span>
+      </div>
+
+      <div
+        class="flex items-center gap-2 rounded-full px-3 py-1.5"
+        :style="statusWrapperStyle"
+      >
+        <span class="w-2 h-2 rounded-full" :style="statusDotStyle"></span>
+        <span class="text-xs font-semibold">{{ status }}</span>
       </div>
     </div>
   </section>
