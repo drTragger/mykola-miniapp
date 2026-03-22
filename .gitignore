@@ -1,15 +1,62 @@
-# binaries
+# =========================
+# Build artifacts
+# =========================
+/bin/
+mykola-miniapp
 *.out
 *.exe
-*.bin
-/mykola-miniapp
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.cover
 
-# env
+# =========================
+# Go specific
+# =========================
+# go workspaces
+go.work
+go.work.sum
+
+# vendor
+vendor/
+
+# =========================
+# Env & secrets
+# =========================
 .env
+.env.*
+!.env.example
 
-# system
+# =========================
+# OS files
+# =========================
 .DS_Store
+Thumbs.db
 
-# editors
+# =========================
+# Editors / IDE
+# =========================
 .vscode/
 .idea/
+*.swp
+*.swo
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# Temp / misc
+# =========================
+tmp/
+temp/
+*.tmp
+
+# =========================
+# Test / coverage
+# =========================
+coverage.out
+coverage.html
