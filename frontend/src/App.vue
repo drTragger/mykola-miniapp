@@ -60,13 +60,17 @@ const {
 
 const user = tg?.initDataUnsafe?.user
 
-const subtitle = computed(() => {
+const subtitleLines = computed(() => {
   if (!user) {
-    return 'Панель моніторингу Raspberry Pi'
+    return ['Панель моніторингу Raspberry Pi']
   }
 
   const fullName = `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim()
-  return `Панель моніторингу Raspberry Pi • ${fullName || user.username || 'Telegram user'}`
+
+  return [
+    'Панель моніторингу Raspberry Pi',
+    fullName || user.username || 'Telegram user'
+  ]
 })
 
 const heroTitle = computed(() => {
@@ -214,7 +218,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="app-shell max-w-[920px] mx-auto px-4 pb-32 space-y-4">
-    <AppHeader :subtitle="subtitle" :status="status" />
+    <AppHeader :subtitle-lines="subtitleLines" :status="status" />
 
     <DeviceHero
       :title="heroTitle"

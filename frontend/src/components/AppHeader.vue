@@ -1,7 +1,7 @@
 <script setup>
 defineProps({
-  subtitle: {
-    type: String,
+  subtitleLines: {
+    type: Array,
     required: true
   },
   status: {
@@ -17,8 +17,18 @@ defineProps({
       <div class="text-sm font-bold uppercase tracking-wider text-white/60">
         Mykola Hub
       </div>
-      <div class="mt-1 text-sm text-white/50">
-        {{ subtitle }}
+
+      <div class="text-sm leading-snug mt-1">
+        <div class="text-white/60">
+          {{ subtitleLines[0] }}
+        </div>
+
+        <div
+          v-if="subtitleLines[1]"
+          class="text-xs text-white/40 mt-0.5"
+        >
+          {{ subtitleLines[1] }}
+        </div>
       </div>
     </div>
   </div>
