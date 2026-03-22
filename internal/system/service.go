@@ -531,31 +531,28 @@ func fillUsers(resp *Response) {
 }
 
 func getLoggedInUsers() ([]UserSession, error) {
-	out, err := runCommand(3, "who", "--ips")
+	out, err := runCommand(3, "who")
 	if err != nil || strings.TrimSpace(out) == "" {
-		out, err = runCommand(3, "who")
-		if err != nil || strings.TrimSpace(out) == "" {
-			return []UserSession{}, nil
-		}
+		return []UserSession{}, nil
 	}
 
 	lines := strings.Split(strings.TrimSpace(out), "\n")
 	result := make([]UserSession, 0, len(lines))
+
+	idleMap := getIdleMap()
 
 	for _, line := range lines {
 		session, ok := parseWhoLine(line)
 		if !ok {
 			continue
 		}
-		result = append(result, session)
-	}
 
-	idleMap := getIdleMap()
-
-	for i := range result {
-		if idle, ok := idleMap[result[i].TTY]; ok {
-			result[i].Idle = idle
+		if idle, ok := idleMap[session.TTY]; ok {
+			session.Idle = idle
 		}
+
+		session.Location = detectLocationLabel(session.RemoteIP, session.ConnectionType)
+		result = append(result, session)
 	}
 
 	return result, nil
@@ -578,6 +575,7 @@ func parseWhoLine(line string) (UserSession, bool) {
 	}
 
 	loginAt := fmt.Sprintf("%s %s", datePart, timePart)
+	connectionType := detectConnectionType(tty, from)
 
 	session := UserSession{
 		Username:       username,
@@ -586,7 +584,7 @@ func parseWhoLine(line string) (UserSession, bool) {
 		RemoteIP:       normalizeRemoteIP(from),
 		LoginAt:        loginAt,
 		Idle:           "—",
-		ConnectionType: detectConnectionType(tty, from),
+		ConnectionType: connectionType,
 		IsLocal:        isLocalSession(tty, from),
 		Location:       "—",
 	}
@@ -614,16 +612,18 @@ func isLocalSession(tty, from string) bool {
 		return true
 	}
 
+	if strings.HasPrefix(tty, "pts/") {
+		if from != "" && from != ":0" && from != "localhost" {
+			return false
+		}
+		return true
+	}
+
 	if from == "" || from == ":0" || from == "localhost" {
 		return true
 	}
 
-	ip := net.ParseIP(from)
-	if ip == nil {
-		return false
-	}
-
-	return ip.IsLoopback() || ip.IsPrivate()
+	return false
 }
 
 func normalizeRemoteIP(from string) string {
@@ -636,7 +636,7 @@ func normalizeRemoteIP(from string) string {
 }
 
 func getIdleMap() map[string]string {
-	out, err := runCommand(3, "w", "-h")
+	out, err := runCommand(3, "who", "-u")
 	if err != nil || strings.TrimSpace(out) == "" {
 		return map[string]string{}
 	}
@@ -651,9 +651,59 @@ func getIdleMap() map[string]string {
 		}
 
 		tty := fields[1]
-		idle := fields[4]
-		result[tty] = idle
+		idle := normalizeIdle(fields[4])
+
+		if tty != "" {
+			result[tty] = idle
+		}
 	}
 
 	return result
+}
+
+func normalizeIdle(idle string) string {
+	idle = strings.TrimSpace(idle)
+
+	switch idle {
+	case "", "—":
+		return "—"
+	case ".":
+		return "активний"
+	case "old":
+		return "давно неактивний"
+	default:
+		return idle
+	}
+}
+
+func detectLocationLabel(remoteIP, connectionType string) string {
+	if connectionType == "local" {
+		return "Ця машина"
+	}
+
+	if remoteIP == "" || remoteIP == ":0" || remoteIP == "localhost" {
+		return "Локально"
+	}
+
+	ip := net.ParseIP(remoteIP)
+	if ip == nil {
+		return "Віддалений хост"
+	}
+
+	if ip.IsLoopback() {
+		return "Локально"
+	}
+
+	if isPrivateOrLocalIP(ip) {
+		return "Локальна / VPN мережа"
+	}
+
+	return "Публічна мережа"
+}
+
+func isPrivateOrLocalIP(ip net.IP) bool {
+	return ip.IsPrivate() ||
+		ip.IsLoopback() ||
+		ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast()
 }
