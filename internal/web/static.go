@@ -5,9 +5,9 @@ import (
 	"io/fs"
 )
 
-//go:embed web/*
+//go:embed dist dist/*
 var embeddedFiles embed.FS
 
 func StaticFS() (fs.FS, error) {
-	return fs.Sub(embeddedFiles, "web")
+	return fs.Sub(embeddedFiles, "dist")
 }

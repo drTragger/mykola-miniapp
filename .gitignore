@@ -13,13 +13,16 @@ mykola-miniapp
 *.cover
 
 # =========================
+# Frontend
+# =========================
+frontend/node_modules/
+internal/web/dist/
+
+# =========================
 # Go specific
 # =========================
-# go workspaces
 go.work
 go.work.sum
-
-# vendor
 vendor/
 
 # =========================
