@@ -14,6 +14,10 @@ const props = defineProps({
     type: Object,
     required: true
   },
+  vpnSummary: {
+    type: Object,
+    default: null
+  },
   cpuUsageHistory: {
     type: Array,
     default: () => []
@@ -53,7 +57,7 @@ const services = computed(() => [
   { label: 'Sonarr', ok: !!props.metrics.services?.sonarr },
   { label: 'Radarr', ok: !!props.metrics.services?.radarr },
   { label: 'Prowlarr', ok: !!props.metrics.services?.prowlarr },
-  { label: 'VPN', ok: !!props.metrics.vpn?.ok }
+  { label: 'VPN', ok: !!props.vpnSummary?.vpnOk }
 ])
 </script>
 

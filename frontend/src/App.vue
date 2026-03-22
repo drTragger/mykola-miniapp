@@ -10,6 +10,7 @@ import { fetchMetrics } from './api/metrics'
 import { fetchUps } from './api/ups'
 import { fetchUpsBattery } from './api/upsBattery'
 import { fetchSystemDetails } from './api/system'
+import { fetchVpnSummary } from './api/vpnSummary'
 import { formatCollectedAt, formatUptime } from './utils/formatters'
 import { useMetricsHistory } from './composables/useMetricsHistory'
 import mykolaImage from './assets/mykola-1.png'
@@ -45,6 +46,9 @@ const upsError = ref('')
 
 const heroBattery = ref(null)
 const heroBatteryLoading = ref(false)
+
+const vpnSummary = ref(null)
+const vpnSummaryIntervalId = ref(null)
 
 const {
   cpuUsageHistory,
@@ -135,6 +139,14 @@ async function loadSystemDetails() {
   }
 }
 
+async function loadVpnSummary() {
+  try {
+    vpnSummary.value = await fetchVpnSummary()
+  } catch (error) {
+    console.error(error)
+  }
+}
+
 async function refreshHeroData() {
   await Promise.allSettled([
     loadMetrics(),
@@ -156,9 +168,11 @@ onMounted(() => {
   loadMetrics()
   loadHeroBattery()
   loadSystemDetails()
+  loadVpnSummary()
 
   metricsIntervalId.value = setInterval(loadMetrics, 5000)
   heroBatteryIntervalId.value = setInterval(loadHeroBattery, 30000)
+  vpnSummaryIntervalId.value = setInterval(loadVpnSummary, 30000)
 })
 
 onBeforeUnmount(() => {
@@ -168,6 +182,10 @@ onBeforeUnmount(() => {
 
   if (heroBatteryIntervalId.value) {
     clearInterval(heroBatteryIntervalId.value)
+  }
+
+  if (vpnSummaryIntervalId.value) {
+    clearInterval(vpnSummaryIntervalId.value)
   }
 })
 </script>
@@ -190,6 +208,7 @@ onBeforeUnmount(() => {
     <OverviewView
       v-if="activeTab === 'overview'"
       :metrics="metrics"
+      :vpn-summary="vpnSummary"
       :cpu-usage-history="cpuUsageHistory"
       :cpu-temp-history="cpuTempHistory"
       :ram-usage-history="ramUsageHistory"
