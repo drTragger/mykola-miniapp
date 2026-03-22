@@ -4,3 +4,8 @@ addr = ":8090"
 [telegram]
 token = "YOUR_TELEGRAM_BOT_TOKEN"
 admin_ids = [123456789]
+
+[qbittorrent]
+base_url = "http://127.0.0.1:8080"
+username = "username"
+password = "password"

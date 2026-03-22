@@ -5,6 +5,7 @@ import DeviceHero from './components/DeviceHero.vue'
 import BottomNav from './components/BottomNav.vue'
 import OverviewView from './views/OverviewView.vue'
 import UpsView from './views/UpsView.vue'
+import QBittorrentView from './views/QBittorrentView.vue'
 import SystemDetailsView from './views/SystemDetailsView.vue'
 import { fetchMetrics } from './api/metrics'
 import { fetchUps } from './api/ups'
@@ -223,6 +224,10 @@ onBeforeUnmount(() => {
       :cpu-usage-history="cpuUsageHistory"
       :cpu-temp-history="cpuTempHistory"
       :ram-usage-history="ramUsageHistory"
+    />
+
+    <QBittorrentView
+      v-else-if="activeTab === 'qbittorrent'"
     />
 
     <UpsView

@@ -15,6 +15,12 @@ type Config struct {
 		Token    string  `toml:"token"`
 		AdminIDs []int64 `toml:"admin_ids"`
 	} `toml:"telegram"`
+
+	QBittorrent struct {
+		BaseURL  string `toml:"base_url"`
+		Username string `toml:"username"`
+		Password string `toml:"password"`
+	} `toml:"qbittorrent"`
 }
 
 func Load() Config {
@@ -27,6 +33,10 @@ func Load() Config {
 
 	if cfg.App.Addr == "" {
 		cfg.App.Addr = ":8090"
+	}
+
+	if cfg.QBittorrent.BaseURL == "" {
+		cfg.QBittorrent.BaseURL = "http://127.0.0.1:8080"
 	}
 
 	return cfg

@@ -28,6 +28,16 @@ func NewRouter() (http.Handler, error) {
 	mux.HandleFunc("/api/system", systemHandler)
 	mux.HandleFunc("/api/vpn/summary", vpnSummaryHandler)
 
+	qbHandler, err := newQBittorrentHandler()
+	if err != nil {
+		return nil, err
+	}
+
+	mux.HandleFunc("/api/qbittorrent/torrents", qbHandler.list)
+	mux.HandleFunc("/api/qbittorrent/torrents/pause", qbHandler.pause)
+	mux.HandleFunc("/api/qbittorrent/torrents/resume", qbHandler.resume)
+	mux.HandleFunc("/api/qbittorrent/torrents/delete", qbHandler.delete)
+
 	mux.Handle("/assets/", fileServer)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
