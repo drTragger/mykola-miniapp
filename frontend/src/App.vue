@@ -209,7 +209,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app-shell max-w-[920px] mx-auto px-4 pb-32 pt-4 space-y-4">
+  <div class="app-shell max-w-[920px] mx-auto px-4 pb-32 space-y-4">
     <AppHeader :subtitle="subtitle" :status="status" />
 
     <DeviceHero
