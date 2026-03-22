@@ -1,12 +1,14 @@
 <script setup>
-import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import AppHeader from './components/AppHeader.vue'
 import DeviceHero from './components/DeviceHero.vue'
 import BottomNav from './components/BottomNav.vue'
 import OverviewView from './views/OverviewView.vue'
 import SystemView from './views/SystemView.vue'
 import NetworkView from './views/NetworkView.vue'
+import UpsView from './views/UpsView.vue'
 import { fetchMetrics } from './api/metrics'
+import { fetchUps } from './api/ups'
 import { formatCollectedAt, formatUptime } from './utils/formatters'
 import { useMetricsHistory } from './composables/useMetricsHistory'
 import mykolaImage from './assets/mykola-1.png'
@@ -23,8 +25,14 @@ const intervalId = ref(null)
 const metrics = ref({
   overview: {},
   system: {},
-  network: {}
+  network: {},
+  services: {},
+  vpn: {}
 })
+
+const ups = ref(null)
+const upsLoading = ref(false)
+const upsError = ref('')
 
 const {
   cpuUsageHistory,
@@ -46,6 +54,11 @@ const subtitle = computed(() => {
 
 const heroTitle = computed(() => metrics.value.system?.hostname || 'mykola-1')
 const heroUptime = computed(() => formatUptime(metrics.value.overview?.uptimeSeconds || 0))
+const heroIp = computed(() => metrics.value.network?.localIpv4 || '—')
+
+const heroBatteryPercent = computed(() => {
+  return ups.value?.data?.batteryPercent ?? null
+})
 
 async function loadMetrics() {
   status.value = 'Оновлення...'
@@ -61,6 +74,26 @@ async function loadMetrics() {
     status.value = 'Помилка'
   }
 }
+
+async function loadUps() {
+  upsLoading.value = true
+  upsError.value = ''
+
+  try {
+    ups.value = await fetchUps()
+  } catch (error) {
+    console.error(error)
+    upsError.value = error.message || 'Не вдалося завантажити UPS'
+  } finally {
+    upsLoading.value = false
+  }
+}
+
+watch(activeTab, async (tab) => {
+  if (tab === 'ups' && !ups.value && !upsLoading.value) {
+    await loadUps()
+  }
+})
 
 onMounted(() => {
   loadMetrics()
@@ -83,7 +116,9 @@ onBeforeUnmount(() => {
       :subtitle="lastUpdated"
       :status="status"
       :uptime="heroUptime"
+      :local-ip="heroIp"
       :hero-image="mykolaImage"
+      :battery-percent="heroBatteryPercent"
       @refresh="loadMetrics"
     />
 
@@ -96,7 +131,13 @@ onBeforeUnmount(() => {
     />
 
     <SystemView v-else-if="activeTab === 'system'" :metrics="metrics" />
-    <NetworkView v-else :metrics="metrics" />
+    <NetworkView v-else-if="activeTab === 'network'" :metrics="metrics" />
+    <UpsView
+      v-else-if="activeTab === 'ups'"
+      :ups="ups"
+      :loading="upsLoading"
+      :error="upsError"
+    />
 
     <BottomNav v-model="activeTab" />
   </div>
