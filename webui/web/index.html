@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+  />
+  <title>Mykola Mini App</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: var(--tg-theme-bg-color, #0f172a);
+      color: var(--tg-theme-text-color, #ffffff);
+    }
+
+    .app {
+      padding: 16px;
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: var(--tg-theme-secondary-bg-color, #111827);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .muted {
+      opacity: 0.8;
+      font-size: 14px;
+    }
+
+    .row {
+      margin: 8px 0;
+      word-break: break-word;
+    }
+
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      font-size: 16px;
+      cursor: pointer;
+      background: var(--tg-theme-button-color, #2563eb);
+      color: var(--tg-theme-button-text-color, #ffffff);
+    }
+
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <div class="title">Mykola Mini App</div>
+      <div class="muted">Базовий тест Telegram Mini App на Go + Raspberry Pi</div>
+    </div>
+
+    <div class="card">
+      <div class="row"><strong>Статус:</strong> <span id="status">Ініціалізація...</span></div>
+      <div class="row"><strong>User ID:</strong> <span id="userId">—</span></div>
+      <div class="row"><strong>Username:</strong> <span id="username">—</span></div>
+      <div class="row"><strong>Ім'я:</strong> <span id="fullName">—</span></div>
+    </div>
+
+    <div class="card">
+      <button id="checkBackend">Перевірити бекенд</button>
+    </div>
+
+    <div class="card">
+      <div class="row"><strong>Відповідь бекенда:</strong></div>
+      <pre id="backendResponse">Поки що порожньо</pre>
+    </div>
+  </div>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    const statusEl = document.getElementById('status');
+    const userIdEl = document.getElementById('userId');
+    const usernameEl = document.getElementById('username');
+    const fullNameEl = document.getElementById('fullName');
+    const backendResponseEl = document.getElementById('backendResponse');
+    const checkBackendBtn = document.getElementById('checkBackend');
+
+    const user = tg.initDataUnsafe?.user;
+
+    if (user) {
+      statusEl.textContent = 'Запущено всередині Telegram';
+      userIdEl.textContent = user.id ?? '—';
+      usernameEl.textContent = user.username ?? '—';
+      fullNameEl.textContent = `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || '—';
+    } else {
+      statusEl.textContent = 'Відкрито поза Telegram або Telegram не передав user';
+    }
+
+    checkBackendBtn.addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/me', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            initData: tg.initData || ''
+          })
+        });
+
+        const data = await res.json();
+        backendResponseEl.textContent = JSON.stringify(data, null, 2);
+
+        if (data.ok) {
+          tg.showAlert('Бекенд успішно перевірив initData');
+        } else {
+          tg.showAlert('Бекенд повернув помилку');
+        }
+      } catch (e) {
+        backendResponseEl.textContent = String(e);
+        tg.showAlert('Помилка запиту до бекенда');
+      }
+    });
+  </script>
+</body>
+</html>
