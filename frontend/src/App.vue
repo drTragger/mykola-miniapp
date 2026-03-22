@@ -182,6 +182,10 @@ onMounted(() => {
     ?? 0
 
   document.documentElement.style.setProperty('--tg-safe-top', `${topInset}px`)
+  document.documentElement.style.setProperty(
+    '--tg-extra-top',
+    topInset > 0 ? '16px' : '0px'
+  )
 
   loadMetrics()
   loadHeroBattery()
