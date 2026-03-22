@@ -177,6 +177,12 @@ watch(activeTab, async (tab) => {
 })
 
 onMounted(() => {
+  const topInset = tg?.contentSafeAreaInset?.top
+    ?? tg?.safeAreaInset?.top
+    ?? 0
+
+  document.documentElement.style.setProperty('--tg-safe-top', `${topInset}px`)
+
   loadMetrics()
   loadHeroBattery()
   loadSystemDetails()
@@ -203,7 +209,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="max-w-[920px] mx-auto px-4 pb-32 pt-4 space-y-4">
+  <div class="app-shell max-w-[920px] mx-auto px-4 pb-32 pt-4 space-y-4">
     <AppHeader :subtitle="subtitle" :status="status" />
 
     <DeviceHero
@@ -246,3 +252,9 @@ onBeforeUnmount(() => {
     <BottomNav v-model="activeTab" />
   </div>
 </template>
+
+<style>
+.app-shell {
+  padding-top: calc(var(--tg-safe-top, 0px) + 16px);
+}
+</style>
