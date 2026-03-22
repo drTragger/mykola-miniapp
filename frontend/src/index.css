@@ -21,7 +21,7 @@
 
 @layer utilities {
   .app-shell {
-    padding-top: calc(var(--tg-safe-top, 0px) + 24px);
+    padding-top: calc(var(--tg-safe-top, 0px) + 32px);
   }
 
   .no-scrollbar {
