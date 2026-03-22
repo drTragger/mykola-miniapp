@@ -5,7 +5,7 @@ import (
 	"io/fs"
 )
 
-//go:embed dist dist/*
+//go:embed dist dist/* dist/assets dist/assets/*
 var embeddedFiles embed.FS
 
 func StaticFS() (fs.FS, error) {
