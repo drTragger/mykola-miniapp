@@ -8,19 +8,19 @@ FRONTEND_DIR=frontend
 .PHONY: help tidy fmt frontend-install frontend-build build run pull restart reload status logs deploy clean
 
 help:
-	@echo "make tidy            - go mod tidy"
-	@echo "make fmt             - go fmt ./..."
+	@echo "make tidy             - go mod tidy"
+	@echo "make fmt              - go fmt ./..."
 	@echo "make frontend-install - npm install in frontend"
-	@echo "make frontend-build  - build Vue frontend"
-	@echo "make build           - build frontend + Go app"
-	@echo "make run             - run app locally"
-	@echo "make pull            - git pull"
-	@echo "make restart         - restart systemd service"
-	@echo "make reload          - daemon-reload + restart"
-	@echo "make status          - show service status"
-	@echo "make logs            - tail service logs"
-	@echo "make deploy          - pull + tidy + build + restart + status"
-	@echo "make clean           - delete build artifacts"
+	@echo "make frontend-build   - build Vue frontend"
+	@echo "make build            - install frontend deps + build frontend + build Go app"
+	@echo "make run              - run app locally"
+	@echo "make pull             - git pull"
+	@echo "make restart          - restart systemd service"
+	@echo "make reload           - daemon-reload + restart"
+	@echo "make status           - show service status"
+	@echo "make logs             - tail service logs"
+	@echo "make deploy           - pull + tidy + build + restart + status"
+	@echo "make clean            - delete build artifacts"
 
 tidy:
 	go mod tidy
@@ -34,7 +34,7 @@ frontend-install:
 frontend-build:
 	cd $(FRONTEND_DIR) && npm run build
 
-build: frontend-build
+build: frontend-install frontend-build
 	mkdir -p $(BUILD_DIR)
 	go build -o $(BINARY) $(CMD_PATH)
 
