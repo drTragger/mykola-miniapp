@@ -87,11 +87,8 @@ onBeforeUnmount(() => {
       :uptime="heroUptime"
       :local-ip="heroIp"
       :hero-image="mykolaImage"
+      @refresh="loadMetrics"
     />
-
-    <div class="top-actions">
-      <button class="primary-action" @click="loadMetrics">Оновити зараз</button>
-    </div>
 
     <OverviewView
       v-if="activeTab === 'overview'"

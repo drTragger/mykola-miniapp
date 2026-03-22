@@ -29,6 +29,8 @@ defineProps({
     default: '/hero.png'
   }
 })
+
+const emit = defineEmits(['refresh'])
 </script>
 
 <template>
@@ -47,9 +49,16 @@ defineProps({
           </div>
         </div>
 
-        <div class="hero-status" :class="status === 'Онлайн' ? 'is-online' : ''">
-          <span class="hero-status-dot"></span>
-          {{ status }}
+        <div class="hero-actions">
+          <button class="hero-refresh-btn" type="button" @click="emit('refresh')">
+            <span class="hero-refresh-icon">↻</span>
+            <span>Оновити</span>
+          </button>
+
+          <div class="hero-status" :class="status === 'Онлайн' ? 'is-online' : ''">
+            <span class="hero-status-dot"></span>
+            {{ status }}
+          </div>
         </div>
       </div>
 
