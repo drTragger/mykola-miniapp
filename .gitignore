@@ -1,5 +1,15 @@
-mykola-miniapp
+# binaries
+*.out
+*.exe
+*.bin
+/mykola-miniapp
+
+# env
 .env
+
+# system
 .DS_Store
+
+# editors
 .vscode/
 .idea/
