@@ -99,6 +99,17 @@ func fillNetwork(resp *Response) {
 	pingMs := measureTCPPing("1.1.1.1:443")
 	rxTotal, txTotal, rxSpeed, txSpeed := sampleNetworkTotals()
 
+	rxSpeedHuman := "—"
+	txSpeedHuman := "—"
+
+	if rxSpeed > 0 {
+		rxSpeedHuman = humanBytes(uint64(rxSpeed)) + "/s"
+	}
+
+	if txSpeed > 0 {
+		txSpeedHuman = humanBytes(uint64(txSpeed)) + "/s"
+	}
+
 	resp.Network = NetworkMetrics{
 		LocalIPv4:    localIPv4,
 		PublicIP:     publicIP,
@@ -109,8 +120,8 @@ func fillNetwork(resp *Response) {
 		TxSpeedBps:   txSpeed,
 		RxTotalHuman: humanBytes(rxTotal),
 		TxTotalHuman: humanBytes(txTotal),
-		RxSpeedHuman: humanBytes(uint64(rxSpeed)) + "/s",
-		TxSpeedHuman: humanBytes(uint64(txSpeed)) + "/s",
+		RxSpeedHuman: rxSpeedHuman,
+		TxSpeedHuman: txSpeedHuman,
 	}
 }
 
@@ -147,6 +158,16 @@ func fillVPN(resp *Response) {
 			WebUI:     qbitWebUI,
 		},
 	}
+}
+
+func fillUsers(resp *Response) {
+	users, err := getLoggedInUsers()
+	if err != nil {
+		resp.Users = []UserSession{}
+		return
+	}
+
+	resp.Users = users
 }
 
 func detectLocalIPv4() string {
@@ -518,16 +539,6 @@ func isServiceActive(name string) bool {
 	}
 
 	return strings.TrimSpace(string(out)) == "active"
-}
-
-func fillUsers(resp *Response) {
-	users, err := getLoggedInUsers()
-	if err != nil {
-		resp.Users = []UserSession{}
-		return
-	}
-
-	resp.Users = users
 }
 
 func getLoggedInUsers() ([]UserSession, error) {
