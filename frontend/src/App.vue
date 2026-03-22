@@ -228,6 +228,7 @@ onBeforeUnmount(() => {
 
     <QBittorrentView
       v-else-if="activeTab === 'qbittorrent'"
+      :active="activeTab === 'qbittorrent'"
     />
 
     <UpsView

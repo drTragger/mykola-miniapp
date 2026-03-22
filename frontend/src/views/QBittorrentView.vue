@@ -1,19 +1,25 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import DataTable from 'primevue/datatable'
-import Column from 'primevue/column'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import Button from 'primevue/button'
 import InputText from 'primevue/inputtext'
 import Tag from 'primevue/tag'
 import Dialog from 'primevue/dialog'
 import Checkbox from 'primevue/checkbox'
 import ProgressBar from 'primevue/progressbar'
+import Menu from 'primevue/menu'
 import {
   fetchTorrents,
   pauseTorrents,
   resumeTorrents,
   deleteTorrents
 } from '../api/qbittorrent'
+
+const props = defineProps({
+  active: {
+    type: Boolean,
+    default: false
+  }
+})
 
 const torrents = ref([])
 const loading = ref(false)
@@ -24,6 +30,12 @@ const search = ref('')
 const deleteDialogVisible = ref(false)
 const deleteFiles = ref(false)
 const deleteTargetHashes = ref([])
+
+const refreshIntervalId = ref(null)
+const actionLoading = ref(false)
+
+const rowActionMenu = ref()
+const rowActionTorrent = ref(null)
 
 const filteredTorrents = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -39,8 +51,69 @@ const filteredTorrents = computed(() => {
   })
 })
 
-async function loadTorrents() {
-  loading.value = true
+const selectedCount = computed(() => selectedTorrents.value.length)
+
+const rowActionItems = computed(() => {
+  if (!rowActionTorrent.value) {
+    return []
+  }
+
+  const items = []
+
+  if (isPausedState(rowActionTorrent.value.state)) {
+    items.push({
+      label: 'Продовжити',
+      icon: 'pi pi-play !text-emerald-500',
+      command: async () => {
+        if (rowActionTorrent.value) {
+          await resumeOne(rowActionTorrent.value)
+        }
+      }
+    })
+  } else {
+    items.push({
+      label: 'Пауза',
+      icon: 'pi pi-pause !text-amber-500',
+      command: async () => {
+        if (rowActionTorrent.value) {
+          await pauseOne(rowActionTorrent.value)
+        }
+      }
+    })
+  }
+
+  items.push({
+    label: 'Видалити',
+    icon: 'pi pi-trash !text-red-500',
+    command: () => {
+      if (rowActionTorrent.value) {
+        askDeleteOne(rowActionTorrent.value)
+      }
+    }
+  })
+
+  return [
+    {
+        label: 'Дії',
+        items: items
+    }
+  ]
+})
+
+function toggleRowActionMenu(event, torrent) {
+  rowActionTorrent.value = torrent
+  rowActionMenu.value?.toggle(event)
+}
+
+function isPausedState(state) {
+  return ['pausedDL', 'pausedUP'].includes(state)
+}
+
+async function loadTorrents({ silent = false } = {}) {
+  if (!silent) {
+    loading.value = true
+  }
+
   error.value = ''
 
   try {
@@ -48,7 +121,24 @@ async function loadTorrents() {
   } catch (e) {
     error.value = e.message || 'Не вдалося завантажити торенти'
   } finally {
-    loading.value = false
+    if (!silent) {
+      loading.value = false
+    }
+  }
+}
+
+function startAutoRefresh() {
+  stopAutoRefresh()
+
+  refreshIntervalId.value = setInterval(() => {
+    loadTorrents({ silent: true })
+  }, 10000)
+}
+
+function stopAutoRefresh() {
+  if (refreshIntervalId.value) {
+    clearInterval(refreshIntervalId.value)
+    refreshIntervalId.value = null
   }
 }
 
@@ -60,18 +150,32 @@ async function handlePauseSelected() {
   const hashes = getSelectedHashes()
   if (!hashes.length) return
 
-  await pauseTorrents(hashes)
-  await loadTorrents()
-  selectedTorrents.value = []
+  actionLoading.value = true
+  try {
+    await pauseTorrents(hashes)
+    selectedTorrents.value = []
+    await loadTorrents()
+  } catch (e) {
+    error.value = e.message || 'Не вдалося поставити торенти на паузу'
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 async function handleResumeSelected() {
   const hashes = getSelectedHashes()
   if (!hashes.length) return
 
-  await resumeTorrents(hashes)
-  await loadTorrents()
-  selectedTorrents.value = []
+  actionLoading.value = true
+  try {
+    await resumeTorrents(hashes)
+    selectedTorrents.value = []
+    await loadTorrents()
+  } catch (e) {
+    error.value = e.message || 'Не вдалося продовжити торенти'
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 function openDeleteDialog(hashes) {
@@ -93,22 +197,58 @@ function askDeleteOne(torrent) {
 async function confirmDelete() {
   if (!deleteTargetHashes.value.length) return
 
-  await deleteTorrents(deleteTargetHashes.value, deleteFiles.value)
-  deleteDialogVisible.value = false
-  deleteTargetHashes.value = []
-  deleteFiles.value = false
-  selectedTorrents.value = []
-  await loadTorrents()
+  actionLoading.value = true
+  try {
+    await deleteTorrents(deleteTargetHashes.value, deleteFiles.value)
+    deleteDialogVisible.value = false
+    deleteTargetHashes.value = []
+    deleteFiles.value = false
+    selectedTorrents.value = []
+    await loadTorrents()
+  } catch (e) {
+    error.value = e.message || 'Не вдалося видалити торенти'
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 async function pauseOne(torrent) {
-  await pauseTorrents([torrent.hash])
-  await loadTorrents()
+  actionLoading.value = true
+  try {
+    await pauseTorrents([torrent.hash])
+    await loadTorrents()
+  } catch (e) {
+    error.value = e.message || 'Не вдалося поставити торент на паузу'
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 async function resumeOne(torrent) {
-  await resumeTorrents([torrent.hash])
-  await loadTorrents()
+  actionLoading.value = true
+  try {
+    await resumeTorrents([torrent.hash])
+    await loadTorrents()
+  } catch (e) {
+    error.value = e.message || 'Не вдалося продовжити торент'
+  } finally {
+    actionLoading.value = false
+  }
+}
+
+function toggleTorrentSelection(torrent) {
+  const exists = selectedTorrents.value.some((item) => item.hash === torrent.hash)
+
+  if (exists) {
+    selectedTorrents.value = selectedTorrents.value.filter((item) => item.hash !== torrent.hash)
+    return
+  }
+
+  selectedTorrents.value = [...selectedTorrents.value, torrent]
+}
+
+function isSelected(torrent) {
+  return selectedTorrents.value.some((item) => item.hash === torrent.hash)
 }
 
 function formatBytes(bytes) {
@@ -128,7 +268,9 @@ function formatBytes(bytes) {
 }
 
 function formatSpeed(bytes) {
-  return `${formatBytes(bytes)}/s`
+  const numeric = Number(bytes || 0)
+  if (numeric <= 0) return '0 B/s'
+  return `${formatBytes(numeric)}/s`
 }
 
 function formatPercent(progress) {
@@ -146,6 +288,10 @@ function formatEta(seconds) {
   return `${m}хв`
 }
 
+function formatRatio(value) {
+  return Number(value || 0).toFixed(2)
+}
+
 function stateLabel(state) {
   const map = {
     downloading: 'Завантаження',
@@ -161,7 +307,7 @@ function stateLabel(state) {
     checkingResumeData: 'Перевірка',
     forcedDL: 'Примусово',
     forcedUP: 'Примусово',
-    metaDL: 'Отримання метаданих',
+    metaDL: 'Метадані',
     error: 'Помилка',
     missingFiles: 'Немає файлів'
   }
@@ -171,70 +317,93 @@ function stateLabel(state) {
 
 function stateSeverity(state) {
   if (['downloading', 'forcedDL', 'metaDL'].includes(state)) return 'info'
-  if (['uploading', 'stalledUP', 'forcedUP'].includes(state)) return 'success'
-  if (['pausedDL', 'pausedUP'].includes(state)) return 'warning'
+  if (['uploading', 'forcedUP'].includes(state)) return 'success'
+  if (['stalledUP'].includes(state)) return 'contrast'
+  if (['pausedDL', 'pausedUP'].includes(state)) return 'warn'
+  if (['queuedDL', 'queuedUP', 'stalledDL'].includes(state)) return 'secondary'
+  if (['checkingUP', 'checkingDL', 'checkingResumeData'].includes(state)) return 'info'
   if (['error', 'missingFiles'].includes(state)) return 'danger'
   return 'secondary'
 }
 
-onMounted(loadTorrents)
+watch(
+  () => props.active,
+  async (isActive) => {
+    if (isActive) {
+      await loadTorrents()
+      startAutoRefresh()
+      return
+    }
+
+    stopAutoRefresh()
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(() => {
+  stopAutoRefresh()
+})
 </script>
 
 <template>
-  <section class="space-y-4">
+  <section class="space-y-3">
     <div class="bg-panel rounded-2xl border border-white/10 p-4 shadow-custom">
-      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-        <div>
-          <div class="text-[10px] uppercase tracking-wide text-white/60 mb-1">
-            qBittorrent
+      <div class="flex flex-col gap-3">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="text-[10px] uppercase tracking-wide text-white/60 mb-1">
+              qBittorrent
+            </div>
+            <div class="text-sm text-white/50">
+              Торенти, пауза, продовження, видалення
+            </div>
           </div>
-          <div class="text-sm text-white/50">
-            Керування торентами, пауза, продовження, видалення
-          </div>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <InputText
-            v-model="search"
-            placeholder="Пошук торентів"
-            class="w-full lg:w-72"
-          />
 
           <Button
             icon="pi pi-refresh"
             text
             rounded
+            :loading="loading"
             @click="loadTorrents"
           />
         </div>
+
+        <InputText
+          v-model="search"
+          placeholder="Пошук торентів"
+          size="small"
+          fluid
+        />
       </div>
     </div>
 
-    <div class="bg-panel rounded-2xl border border-white/10 p-4 shadow-custom">
-      <div class="flex flex-wrap gap-2">
+    <div class="bg-panel rounded-2xl border border-white/10 p-3 shadow-custom">
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="text-xs text-white/50 mr-1">
+          Вибрано: {{ selectedCount }}
+        </div>
+
         <Button
-          label="Пауза вибраних"
           icon="pi pi-pause"
           size="small"
-          :disabled="!selectedTorrents.length"
+          severity="warn"
+          :disabled="!selectedTorrents.length || actionLoading"
           @click="handlePauseSelected"
         />
 
         <Button
-          label="Продовжити вибрані"
           icon="pi pi-play"
           size="small"
           severity="success"
-          :disabled="!selectedTorrents.length"
+          :disabled="!selectedTorrents.length || actionLoading"
           @click="handleResumeSelected"
         />
 
         <Button
-          label="Видалити вибрані"
           icon="pi pi-trash"
           size="small"
           severity="danger"
-          :disabled="!selectedTorrents.length"
+          :disabled="!selectedTorrents.length || actionLoading"
           @click="askDeleteSelected"
         />
       </div>
@@ -247,109 +416,98 @@ onMounted(loadTorrents)
       {{ error }}
     </div>
 
-    <div class="bg-panel rounded-2xl border border-white/10 p-2 shadow-custom overflow-hidden">
-      <DataTable
-        v-model:selection="selectedTorrents"
-        :value="filteredTorrents"
-        dataKey="hash"
-        scrollable
-        scrollHeight="70vh"
-        stripedRows
-        :loading="loading"
-        class="rounded-xl overflow-hidden"
+    <Menu
+      ref="rowActionMenu"
+      :model="rowActionItems"
+      popup
+    />
+
+    <div class="space-y-3">
+      <div
+        v-for="torrent in filteredTorrents"
+        :key="torrent.hash"
+        class="bg-panel rounded-2xl border border-white/10 p-3 sm:p-4 shadow-custom"
       >
-        <Column selectionMode="multiple" headerStyle="width: 3rem" />
+        <div class="flex items-start gap-3">
+          <Checkbox
+            :modelValue="isSelected(torrent)"
+            binary
+            @update:modelValue="toggleTorrentSelection(torrent)"
+          />
 
-        <Column field="name" header="Торент" style="min-width: 22rem">
-          <template #body="{ data }">
-            <div class="space-y-2">
-              <div class="font-semibold text-white">
-                {{ data.name }}
+          <div class="min-w-0 flex-1">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="font-semibold text-white leading-snug break-words">
+                  {{ torrent.name }}
+                </div>
+
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <Tag :value="stateLabel(torrent.state)" :severity="stateSeverity(torrent.state)" />
+                  <Tag v-if="torrent.category" :value="torrent.category" severity="secondary" />
+                </div>
               </div>
 
-              <div class="flex flex-wrap gap-2">
-                <Tag :value="stateLabel(data.state)" :severity="stateSeverity(data.state)" />
-                <Tag v-if="data.category" :value="data.category" severity="secondary" />
+              <div class="shrink-0">
+                <Button
+                  icon="pi pi-ellipsis-v"
+                  size="small"
+                  text
+                  rounded
+                  aria-label="Дії"
+                  :disabled="actionLoading"
+                  @click="toggleRowActionMenu($event, torrent)"
+                />
               </div>
+            </div>
 
+            <div class="mt-3">
               <ProgressBar
-                :value="Number((data.progress || 0) * 100)"
+                :value="Number((torrent.progress || 0) * 100)"
                 :showValue="false"
                 style="height: 8px"
               />
-
-              <div class="text-xs text-white/50">
-                {{ formatPercent(data.progress) }}
+              <div class="mt-1 text-xs text-white/50">
+                {{ formatPercent(torrent.progress) }}
               </div>
             </div>
-          </template>
-        </Column>
 
-        <Column header="Швидкість" style="min-width: 12rem">
-          <template #body="{ data }">
-            <div class="space-y-1 text-sm">
-              <div>↓ {{ formatSpeed(data.dlSpeed) }}</div>
-              <div>↑ {{ formatSpeed(data.upSpeed) }}</div>
+            <div class="mt-3 grid grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-2 text-sm">
+              <div class="text-white/45">Швидкість</div>
+              <div class="text-white text-right xl:text-left xl:col-span-2">
+                ↓ {{ formatSpeed(torrent.dlSpeed) }} · ↑ {{ formatSpeed(torrent.upSpeed) }}
+              </div>
+
+              <div class="text-white/45">Розмір</div>
+              <div class="text-white text-right xl:text-left xl:col-span-2 break-words">
+                {{ formatBytes(torrent.downloaded) }} / {{ formatBytes(torrent.totalSize || torrent.size) }}
+              </div>
+
+              <div class="text-white/45">ETA</div>
+              <div class="text-white text-right xl:text-left xl:col-span-2">
+                {{ formatEta(torrent.eta) }}
+              </div>
+
+              <div class="text-white/45">Seeds / Leechs</div>
+              <div class="text-white text-right xl:text-left xl:col-span-2">
+                {{ torrent.numSeeds ?? 0 }} / {{ torrent.numLeechs ?? 0 }}
+              </div>
+
+              <div class="text-white/45">Ratio</div>
+              <div class="text-white text-right xl:text-left xl:col-span-2">
+                {{ formatRatio(torrent.ratio) }}
+              </div>
             </div>
-          </template>
-        </Column>
+          </div>
+        </div>
+      </div>
 
-        <Column header="Розмір" style="min-width: 11rem">
-          <template #body="{ data }">
-            <div class="space-y-1 text-sm">
-              <div>{{ formatBytes(data.downloaded) }} / {{ formatBytes(data.totalSize || data.size) }}</div>
-              <div class="text-white/50">ETA: {{ formatEta(data.eta) }}</div>
-            </div>
-          </template>
-        </Column>
-
-        <Column header="Сіди / Лічи" style="min-width: 10rem">
-          <template #body="{ data }">
-            <div class="space-y-1 text-sm">
-              <div>S: {{ data.numSeeds ?? 0 }}</div>
-              <div>L: {{ data.numLeechs ?? 0 }}</div>
-            </div>
-          </template>
-        </Column>
-
-        <Column header="Ratio" style="min-width: 8rem">
-          <template #body="{ data }">
-            {{ Number(data.ratio || 0).toFixed(2) }}
-          </template>
-        </Column>
-
-        <Column header="Дії" style="min-width: 14rem">
-          <template #body="{ data }">
-            <div class="flex flex-wrap gap-2">
-              <Button
-                icon="pi pi-pause"
-                size="small"
-                text
-                rounded
-                @click="pauseOne(data)"
-              />
-
-              <Button
-                icon="pi pi-play"
-                size="small"
-                text
-                rounded
-                severity="success"
-                @click="resumeOne(data)"
-              />
-
-              <Button
-                icon="pi pi-trash"
-                size="small"
-                text
-                rounded
-                severity="danger"
-                @click="askDeleteOne(data)"
-              />
-            </div>
-          </template>
-        </Column>
-      </DataTable>
+      <div
+        v-if="!loading && !filteredTorrents.length"
+        class="bg-panel rounded-2xl border border-white/10 p-4 shadow-custom text-sm text-white/50"
+      >
+        Торентів не знайдено
+      </div>
     </div>
 
     <Dialog
@@ -373,12 +531,17 @@ onMounted(loadTorrents)
         <div class="flex justify-end gap-2">
           <Button
             label="Скасувати"
+            icon="pi pi-times"
             text
+            size="small"
             @click="deleteDialogVisible = false"
           />
           <Button
             label="Видалити"
+            icon="pi pi-trash"
             severity="danger"
+            size="small"
+            :loading="actionLoading"
             @click="confirmDelete"
           />
         </div>
