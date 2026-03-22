@@ -16,7 +16,7 @@ const props = defineProps({
     class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs border"
     :class="
       ok
-        ? 'bg-green-500/10 text-green-300 border-green-500/20'
+        ? 'bg-green-500/10 text-green-300 border-white/5'
         : 'bg-red-500/10 text-red-300 border-red-500/20'
     "
   >

@@ -44,14 +44,7 @@ const publicIpValue = computed(() => {
 const rxTxValue = computed(() => {
   const rx = props.metrics.network?.rxSpeedHuman || '—'
   const tx = props.metrics.network?.txSpeedHuman || '—'
-  return `↓ ${rx} · ↑ ${tx}`
-})
-
-const rxTxSubvalue = computed(() => {
-  const rxTotal = props.metrics.network?.rxTotalHuman || ''
-  const txTotal = props.metrics.network?.txTotalHuman || ''
-  if (!rxTotal && !txTotal) return ''
-  return `RX ${rxTotal} · TX ${txTotal}`
+  return `↓ ${rx}\n↑ ${tx}`
 })
 
 const services = computed(() => [
@@ -60,7 +53,6 @@ const services = computed(() => [
   { label: 'Sonarr', ok: !!props.metrics.services?.sonarr },
   { label: 'Radarr', ok: !!props.metrics.services?.radarr },
   { label: 'Prowlarr', ok: !!props.metrics.services?.prowlarr },
-  { label: 'Fail2Ban', ok: !!props.metrics.services?.fail2ban },
   { label: 'VPN', ok: !!props.metrics.vpn?.ok }
 ])
 </script>
@@ -112,7 +104,6 @@ const services = computed(() => [
       <MetricCard
         label="RX / TX"
         :value="rxTxValue"
-        :subvalue="rxTxSubvalue"
       />
     </div>
 

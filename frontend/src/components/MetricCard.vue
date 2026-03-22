@@ -29,7 +29,7 @@ defineProps({
     </div>
 
     <div
-      class="mt-1 text-white font-semibold leading-tight"
+      class="mt-1 text-white font-semibold leading-tight whitespace-pre-line"
       :class="compact ? 'text-lg sm:text-xl' : 'text-xl sm:text-2xl'"
     >
       {{ value }}
