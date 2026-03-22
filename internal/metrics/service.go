@@ -1,4 +1,4 @@
-package webui
+package metrics
 
 import (
 	"fmt"
@@ -16,70 +16,29 @@ import (
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
-type MetricsResponse struct {
-	OK          bool            `json:"ok"`
-	CollectedAt string          `json:"collectedAt,omitempty"`
-	Overview    OverviewMetrics `json:"overview"`
-	System      SystemMetrics   `json:"system"`
-	Network     NetworkMetrics  `json:"network"`
-	Error       string          `json:"error,omitempty"`
-}
-
-type OverviewMetrics struct {
-	CPUUsagePercent       float64 `json:"cpuUsagePercent"`
-	CPUTemperatureCelsius float64 `json:"cpuTemperatureCelsius"`
-	RAMUsedBytes          uint64  `json:"ramUsedBytes"`
-	RAMTotalBytes         uint64  `json:"ramTotalBytes"`
-	RAMUsagePercent       float64 `json:"ramUsagePercent"`
-	DiskUsedBytes         uint64  `json:"diskUsedBytes"`
-	DiskTotalBytes        uint64  `json:"diskTotalBytes"`
-	DiskUsagePercent      float64 `json:"diskUsagePercent"`
-	UptimeSeconds         uint64  `json:"uptimeSeconds"`
-}
-
-type SystemMetrics struct {
-	Hostname        string  `json:"hostname"`
-	Platform        string  `json:"platform"`
-	PlatformVersion string  `json:"platformVersion"`
-	KernelVersion   string  `json:"kernelVersion"`
-	Architecture    string  `json:"architecture"`
-	Load1           float64 `json:"load1"`
-	Load5           float64 `json:"load5"`
-	Load15          float64 `json:"load15"`
-	Processes       uint64  `json:"processes"`
-	BootTimeUnix    uint64  `json:"bootTimeUnix"`
-	LogicalCPUCount int     `json:"logicalCpuCount"`
-	CPUModel        string  `json:"cpuModel"`
-	CPUFrequencyMHz float64 `json:"cpuFrequencyMHz"`
-}
-
-type NetworkMetrics struct {
-	LocalIPv4 string `json:"localIpv4"`
-}
-
-func collectMetrics() (MetricsResponse, error) {
-	var resp MetricsResponse
+func Collect() (Response, error) {
+	var resp Response
 	resp.OK = true
 	resp.CollectedAt = time.Now().Format(time.RFC3339)
 
 	vm, err := mem.VirtualMemory()
 	if err != nil {
-		return MetricsResponse{}, fmt.Errorf("virtual memory: %w", err)
+		return Response{}, fmt.Errorf("virtual memory: %w", err)
 	}
 
 	diskUsage, err := disk.Usage("/")
 	if err != nil {
-		return MetricsResponse{}, fmt.Errorf("disk usage: %w", err)
+		return Response{}, fmt.Errorf("disk usage: %w", err)
 	}
 
 	hostInfo, err := host.Info()
 	if err != nil {
-		return MetricsResponse{}, fmt.Errorf("host info: %w", err)
+		return Response{}, fmt.Errorf("host info: %w", err)
 	}
 
 	loadAvg, err := load.Avg()
 	if err != nil {
-		return MetricsResponse{}, fmt.Errorf("load avg: %w", err)
+		return Response{}, fmt.Errorf("load avg: %w", err)
 	}
 
 	cpuUsagePercent := 0.0

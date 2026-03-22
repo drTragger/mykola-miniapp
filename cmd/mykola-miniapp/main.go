@@ -3,25 +3,22 @@ package main
 import (
 	"log"
 	"net/http"
-	"os"
 
-	"github.com/drTragger/mykola-miniapp/webui"
+	"github.com/drTragger/mykola-miniapp/internal/config"
+	"github.com/drTragger/mykola-miniapp/internal/httpapi"
 )
 
 func main() {
-	addr := os.Getenv("APP_ADDR")
-	if addr == "" {
-		addr = ":8090"
-	}
+	cfg := config.Load()
 
-	handler, err := webui.NewHandler()
+	handler, err := httpapi.NewRouter()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Println("Mini App server started on", addr)
+	log.Println("Mini App server started on", cfg.AppAddr)
 
-	if err := http.ListenAndServe(addr, handler); err != nil {
+	if err := http.ListenAndServe(cfg.AppAddr, handler); err != nil {
 		log.Fatal(err)
 	}
 }

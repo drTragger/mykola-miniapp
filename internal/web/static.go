@@ -1,4 +1,4 @@
-package webui
+package web
 
 import (
 	"embed"
@@ -8,6 +8,6 @@ import (
 //go:embed web/*
 var embeddedFiles embed.FS
 
-func staticFS() (fs.FS, error) {
+func StaticFS() (fs.FS, error) {
 	return fs.Sub(embeddedFiles, "web")
 }
