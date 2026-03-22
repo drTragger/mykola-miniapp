@@ -8,6 +8,7 @@ import (
 	"github.com/drTragger/mykola-miniapp/internal/config"
 	"github.com/drTragger/mykola-miniapp/internal/httpapi"
 	"github.com/drTragger/mykola-miniapp/internal/metrics"
+	"github.com/drTragger/mykola-miniapp/internal/system"
 	"github.com/drTragger/mykola-miniapp/internal/ups"
 )
 
@@ -16,6 +17,7 @@ func main() {
 
 	metrics.StartBackgroundRefresh(5 * time.Second)
 	ups.StartBackgroundRefresh(5 * time.Second)
+	system.StartBackgroundRefresh(15 * time.Second)
 
 	handler, err := httpapi.NewRouter()
 	if err != nil {

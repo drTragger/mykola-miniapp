@@ -4,12 +4,12 @@ import AppHeader from './components/AppHeader.vue'
 import DeviceHero from './components/DeviceHero.vue'
 import BottomNav from './components/BottomNav.vue'
 import OverviewView from './views/OverviewView.vue'
-import SystemView from './views/SystemView.vue'
-import NetworkView from './views/NetworkView.vue'
 import UpsView from './views/UpsView.vue'
+import SystemDetailsView from './views/SystemDetailsView.vue'
 import { fetchMetrics } from './api/metrics'
 import { fetchUps } from './api/ups'
 import { fetchUpsBattery } from './api/upsBattery'
+import { fetchSystemDetails } from './api/system'
 import { formatCollectedAt, formatUptime } from './utils/formatters'
 import { useMetricsHistory } from './composables/useMetricsHistory'
 import mykolaImage from './assets/mykola-1.png'
@@ -27,11 +27,17 @@ const heroBatteryIntervalId = ref(null)
 
 const metrics = ref({
   overview: {},
+  network: {},
+  services: {}
+})
+
+const systemData = ref({
   system: {},
   network: {},
-  services: {},
   vpn: {}
 })
+const systemLoading = ref(false)
+const systemError = ref('')
 
 const ups = ref(null)
 const upsLoading = ref(false)
@@ -58,8 +64,13 @@ const subtitle = computed(() => {
   return `Панель моніторингу Raspberry Pi • ${fullName || user.username || 'Telegram user'}`
 })
 
-const heroTitle = computed(() => metrics.value.system?.hostname || 'mykola-1')
-const heroUptime = computed(() => formatUptime(metrics.value.overview?.uptimeSeconds || 0))
+const heroTitle = computed(() => {
+  return systemData.value?.system?.hostname || 'mykola-1'
+})
+
+const heroUptime = computed(() => {
+  return formatUptime(metrics.value.overview?.uptimeSeconds || 0)
+})
 
 const heroBatteryPercent = computed(() => {
   return heroBattery.value?.batteryPercent ?? null
@@ -110,15 +121,41 @@ async function loadHeroBattery() {
   }
 }
 
+async function loadSystemDetails() {
+  systemLoading.value = true
+  systemError.value = ''
+
+  try {
+    systemData.value = await fetchSystemDetails()
+  } catch (error) {
+    console.error(error)
+    systemError.value = error.message || 'Не вдалося завантажити системні дані'
+  } finally {
+    systemLoading.value = false
+  }
+}
+
+async function refreshHeroData() {
+  await Promise.allSettled([
+    loadMetrics(),
+    loadHeroBattery()
+  ])
+}
+
 watch(activeTab, async (tab) => {
   if (tab === 'ups' && !ups.value && !upsLoading.value) {
     await loadUps()
+  }
+
+  if (tab === 'system' && !systemLoading.value && !systemData.value?.collectedAt) {
+    await loadSystemDetails()
   }
 })
 
 onMounted(() => {
   loadMetrics()
   loadHeroBattery()
+  loadSystemDetails()
 
   metricsIntervalId.value = setInterval(loadMetrics, 5000)
   heroBatteryIntervalId.value = setInterval(loadHeroBattery, 30000)
@@ -147,7 +184,7 @@ onBeforeUnmount(() => {
       :hero-image="mykolaImage"
       :battery-percent="heroBatteryPercent"
       :refreshing="metricsRefreshing"
-      @refresh="loadMetrics"
+      @refresh="refreshHeroData"
     />
 
     <OverviewView
@@ -158,13 +195,16 @@ onBeforeUnmount(() => {
       :ram-usage-history="ramUsageHistory"
     />
 
-    <SystemView v-else-if="activeTab === 'system'" :metrics="metrics" />
-    <NetworkView v-else-if="activeTab === 'network'" :metrics="metrics" />
     <UpsView
       v-else-if="activeTab === 'ups'"
       :ups="ups"
       :loading="upsLoading"
       :error="upsError"
+    />
+
+    <SystemDetailsView
+      v-else-if="activeTab === 'system'"
+      :system-data="systemData"
     />
 
     <BottomNav v-model="activeTab" />

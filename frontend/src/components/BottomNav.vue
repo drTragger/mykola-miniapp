@@ -12,7 +12,6 @@ const items = [
   { key: 'overview', label: 'Огляд', icon: 'pi-chart-line' },
   { key: 'ups', label: 'UPS', icon: 'pi-bolt' },
   { key: 'system', label: 'Система', icon: 'pi-desktop' },
-  { key: 'network', label: 'Мережа', icon: 'pi-sitemap' },
 ]
 </script>
 
@@ -20,7 +19,7 @@ const items = [
   <nav
     class="fixed bottom-0 left-0 right-0 bg-panel/80 backdrop-blur-md border-t border-white/10 z-50"
   >
-    <ul class="grid grid-cols-4 gap-1 px-3 py-2 max-w-[920px] mx-auto">
+    <ul class="grid grid-cols-3 gap-1 px-3 py-2 max-w-[920px] mx-auto">
       <li v-for="item in items" :key="item.key">
         <button
           type="button"

@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,7 +18,6 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
-	"github.com/shirou/gopsutil/v3/load"
 	"github.com/shirou/gopsutil/v3/mem"
 )
 
@@ -38,12 +36,11 @@ func Collect() (Response, error) {
 	resp.CollectedAt = time.Now().Format(time.RFC3339)
 
 	var wg sync.WaitGroup
-
-	wg.Add(4)
+	wg.Add(3)
 
 	go func() {
 		defer wg.Done()
-		fillOverviewAndSystem(&resp)
+		fillOverview(&resp)
 	}()
 
 	go func() {
@@ -56,36 +53,20 @@ func Collect() (Response, error) {
 		fillServices(&resp)
 	}()
 
-	go func() {
-		defer wg.Done()
-		fillVPN(&resp)
-	}()
-
 	wg.Wait()
 
 	return resp, nil
 }
 
-func fillOverviewAndSystem(resp *Response) {
+func fillOverview(resp *Response) {
 	vm, _ := mem.VirtualMemory()
 	diskUsage, _ := disk.Usage("/")
 	hostInfo, _ := host.Info()
-	loadAvg, _ := load.Avg()
 
 	cpuUsagePercent := 0.0
 	if cpuPercents, err := cpu.Percent(0, false); err == nil && len(cpuPercents) > 0 {
 		cpuUsagePercent = cpuPercents[0]
 	}
-
-	cpuModel := ""
-	cpuFrequencyMHz := 0.0
-	if cpuInfos, err := cpu.Info(); err == nil && len(cpuInfos) > 0 {
-		cpuModel = cpuInfos[0].ModelName
-		cpuFrequencyMHz = cpuInfos[0].Mhz
-	}
-
-	logicalCPUCount, _ := cpu.Counts(true)
-	hostname, _ := os.Hostname()
 
 	resp.Overview = OverviewMetrics{
 		CPUUsagePercent:       cpuUsagePercent,
@@ -97,22 +78,6 @@ func fillOverviewAndSystem(resp *Response) {
 		DiskTotalBytes:        diskUsage.Total,
 		DiskUsagePercent:      diskUsage.UsedPercent,
 		UptimeSeconds:         hostInfo.Uptime,
-	}
-
-	resp.System = SystemMetrics{
-		Hostname:        hostname,
-		Platform:        hostInfo.Platform,
-		PlatformVersion: hostInfo.PlatformVersion,
-		KernelVersion:   hostInfo.KernelVersion,
-		Architecture:    runtime.GOARCH,
-		Load1:           loadAvg.Load1,
-		Load5:           loadAvg.Load5,
-		Load15:          loadAvg.Load15,
-		Processes:       hostInfo.Procs,
-		BootTimeUnix:    hostInfo.BootTime,
-		LogicalCPUCount: logicalCPUCount,
-		CPUModel:        cpuModel,
-		CPUFrequencyMHz: cpuFrequencyMHz,
 	}
 }
 
@@ -146,123 +111,6 @@ func fillServices(resp *Response) {
 		Prowlarr:    isTCPPortOpen("127.0.0.1:9696"),
 		Fail2ban:    isServiceActive("fail2ban"),
 	}
-}
-
-func fillVPN(resp *Response) {
-	serviceUp := isVPNServiceActive()
-	handshakeAgo, handshakeOk := getWireGuardHandshakeAgo()
-	routeOK := hasDefaultRouteViaWG()
-
-	resp.VPN = VPNMetrics{
-		OK:               serviceUp && handshakeOk && routeOK,
-		Status:           serviceUp,
-		RouteOK:          routeOK,
-		LastHandshakeAgo: handshakeAgo,
-	}
-}
-
-func isVPNServiceActive() bool {
-	out, err := exec.Command("systemctl", "is-active", "wg-quick@wg0").Output()
-	if err != nil {
-		return false
-	}
-
-	return strings.TrimSpace(string(out)) == "active"
-}
-
-func getWireGuardHandshakeAgo() (string, bool) {
-	out, err := runSudoCommand(2, "wg", "show", "wg0", "dump")
-	if err != nil || strings.TrimSpace(out) == "" {
-		return "", false
-	}
-
-	lines := strings.Split(strings.TrimSpace(out), "\n")
-	if len(lines) < 2 {
-		return "", false
-	}
-
-	var latest int64
-
-	for _, line := range lines[1:] {
-		fields := strings.Fields(line)
-		if len(fields) < 8 {
-			continue
-		}
-
-		handshakeUnix, err := strconv.ParseInt(fields[4], 10, 64)
-		if err != nil || handshakeUnix == 0 {
-			continue
-		}
-
-		if handshakeUnix > latest {
-			latest = handshakeUnix
-		}
-	}
-
-	if latest == 0 {
-		return "ніколи", false
-	}
-
-	diff := time.Since(time.Unix(latest, 0))
-	if diff < 0 {
-		diff = 0
-	}
-
-	return humanizeDurationShort(diff) + " тому", diff <= 3*time.Minute
-}
-
-func hasDefaultRouteViaWG() bool {
-	out, err := exec.Command("ip", "route", "show", "table", "vpn").Output()
-	if err != nil {
-		return false
-	}
-
-	return strings.Contains(strings.TrimSpace(string(out)), "default dev wg0")
-}
-
-func humanizeDurationShort(d time.Duration) string {
-	if d < 0 {
-		return "н/д"
-	}
-
-	seconds := int(d.Seconds())
-	if seconds < 60 {
-		if seconds < 1 {
-			seconds = 1
-		}
-		return fmt.Sprintf("%dс", seconds)
-	}
-
-	minutes := seconds / 60
-	if minutes < 60 {
-		return fmt.Sprintf("%dхв", minutes)
-	}
-
-	hours := minutes / 60
-	minutes = minutes % 60
-	if hours < 24 {
-		return fmt.Sprintf("%dг %dхв", hours, minutes)
-	}
-
-	days := hours / 24
-	hours = hours % 24
-	return fmt.Sprintf("%dд %dг", days, hours)
-}
-
-func runSudoCommand(timeoutSec int, cmd string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
-	defer cancel()
-
-	allArgs := append([]string{"-n", cmd}, args...)
-	out, err := exec.CommandContext(ctx, "sudo", allArgs...).CombinedOutput()
-	if ctx.Err() == context.DeadlineExceeded {
-		return "", fmt.Errorf("command timeout")
-	}
-	if err != nil {
-		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-
-	return strings.TrimSpace(string(out)), nil
 }
 
 func detectLocalIPv4() string {
