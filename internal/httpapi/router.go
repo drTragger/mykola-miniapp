@@ -25,6 +25,7 @@ func NewRouter() (http.Handler, error) {
 	mux.HandleFunc("/api/metrics", metricsHandler)
 	mux.HandleFunc("/api/ups", upsHandler)
 	mux.HandleFunc("/api/ups/battery", upsBatteryHandler)
+	mux.HandleFunc("/api/ups/history", upsHistoryHandler)
 	mux.HandleFunc("/api/system", systemHandler)
 	mux.HandleFunc("/api/vpn/summary", vpnSummaryHandler)
 

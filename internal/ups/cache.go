@@ -1,6 +1,7 @@
 package ups
 
 import (
+	"log"
 	"sync"
 	"time"
 )
@@ -17,6 +18,7 @@ func StartBackgroundRefresh(interval time.Duration) {
 		refresh := func() {
 			resp, err := Collect()
 			if err != nil {
+				log.Printf("ups refresh error: %v", err)
 				return
 			}
 
@@ -24,6 +26,15 @@ func StartBackgroundRefresh(interval time.Duration) {
 			cached = resp
 			cacheReady = true
 			cacheMu.Unlock()
+
+			collectedAt, err := time.Parse(time.RFC3339, resp.CollectedAt)
+			if err != nil {
+				collectedAt = time.Now()
+			}
+
+			if err := storeHistorySnapshot(resp.Data, collectedAt); err != nil {
+				log.Printf("ups history store error: %v", err)
+			}
 		}
 
 		refresh()
@@ -57,6 +68,15 @@ func GetSnapshot() (Response, error) {
 	cached = resp
 	cacheReady = true
 	cacheMu.Unlock()
+
+	collectedAt, parseErr := time.Parse(time.RFC3339, resp.CollectedAt)
+	if parseErr != nil {
+		collectedAt = time.Now()
+	}
+
+	if err := storeHistorySnapshot(resp.Data, collectedAt); err != nil {
+		log.Printf("ups history store error: %v", err)
+	}
 
 	return resp, nil
 }

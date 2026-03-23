@@ -10,11 +10,11 @@ import SystemDetailsView from './views/SystemDetailsView.vue'
 import { fetchMetrics } from './api/metrics'
 import { fetchUps } from './api/ups'
 import { fetchUpsBattery } from './api/upsBattery'
+import { fetchUpsHistory } from './api/upsHistory'
 import { fetchSystemDetails } from './api/system'
 import { fetchVpnSummary } from './api/vpnSummary'
 import { formatCollectedAt, formatUptime } from './utils/formatters'
 import { useMetricsHistory } from './composables/useMetricsHistory'
-import { useUpsHistory } from './composables/useUpsHistory'
 import mykolaImage from './assets/mykola-1.png'
 
 const tg = window.Telegram?.WebApp
@@ -52,6 +52,10 @@ const heroBatteryLoading = ref(false)
 const vpnSummary = ref(null)
 const vpnSummaryIntervalId = ref(null)
 
+const batteryPercentHistory = ref([])
+const cellDeltaHistory = ref([])
+const upsHistoryIntervalId = ref(null)
+
 const {
   cpuUsageHistory,
   cpuTempHistory,
@@ -60,12 +64,6 @@ const {
   txSpeedHistory,
   appendMetrics
 } = useMetricsHistory()
-
-const {
-  batteryPercentHistory,
-  cellDeltaHistory,
-  appendUps
-} = useUpsHistory()
 
 const user = tg?.initDataUnsafe?.user
 
@@ -119,7 +117,6 @@ async function loadUps() {
 
   try {
     ups.value = await fetchUps()
-    appendUps(ups.value?.data)
   } catch (error) {
     console.error(error)
     upsError.value = error.message || 'Не вдалося завантажити UPS'
@@ -137,6 +134,39 @@ async function loadHeroBattery() {
     console.error(error)
   } finally {
     heroBatteryLoading.value = false
+  }
+}
+
+async function loadUpsHistory() {
+  try {
+    const points = await fetchUpsHistory(288)
+
+    batteryPercentHistory.value = points.map((point) => ({
+      time: point.time,
+      value: point.batteryPercent
+    }))
+
+    cellDeltaHistory.value = points.map((point) => ({
+      time: point.time,
+      value: point.cellDeltaMv
+    }))
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+function startUpsHistoryRefresh() {
+  stopUpsHistoryRefresh()
+
+  upsHistoryIntervalId.value = setInterval(() => {
+    loadUpsHistory()
+  }, 60000)
+}
+
+function stopUpsHistoryRefresh() {
+  if (upsHistoryIntervalId.value) {
+    clearInterval(upsHistoryIntervalId.value)
+    upsHistoryIntervalId.value = null
   }
 }
 
@@ -181,8 +211,14 @@ async function refreshAllData() {
 }
 
 watch(activeTab, async (tab) => {
-  if (tab === 'ups' && !ups.value && !upsLoading.value) {
-    await loadUps()
+  if (tab === 'ups') {
+    await Promise.all([
+      loadUps(),
+      loadUpsHistory()
+    ])
+    startUpsHistoryRefresh()
+  } else {
+    stopUpsHistoryRefresh()
   }
 
   if (tab === 'system' && !systemLoading.value && !systemData.value?.collectedAt) {
@@ -205,6 +241,7 @@ onMounted(() => {
   loadHeroBattery()
   loadSystemDetails()
   loadVpnSummary()
+  loadUpsHistory()
 
   metricsIntervalId.value = setInterval(loadMetrics, 5000)
   heroBatteryIntervalId.value = setInterval(loadHeroBattery, 30000)
@@ -223,6 +260,8 @@ onBeforeUnmount(() => {
   if (vpnSummaryIntervalId.value) {
     clearInterval(vpnSummaryIntervalId.value)
   }
+
+  stopUpsHistoryRefresh()
 })
 </script>
 

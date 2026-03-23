@@ -33,3 +33,16 @@ type Snapshot struct {
 	CommText     string `json:"commText"`
 	FirmwareText string `json:"firmwareText"`
 }
+
+type HistoryPoint struct {
+	Timestamp      int64  `json:"timestamp"`
+	BatteryPercent int    `json:"batteryPercent"`
+	CellDeltaMV    int    `json:"cellDeltaMv"`
+	Time           string `json:"time"`
+}
+
+type HistoryResponse struct {
+	OK     bool           `json:"ok"`
+	Points []HistoryPoint `json:"points"`
+	Error  string         `json:"error,omitempty"`
+}
