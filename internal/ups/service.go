@@ -116,6 +116,12 @@ func Collect() (Response, error) {
 			CellDeltaMV:   s.CellDeltaMV(),
 			CellDeltaText: s.CellDeltaText(),
 
+			TimeToChargeMin:     s.RemainChgMin,
+			TimeToChargeText:    s.TimeToChargeText(),
+			TimeToDischargeMin:  s.RemainDisMin,
+			TimeToDischargeText: s.TimeToDischargeText(),
+			EtaText:             s.EtaText(),
+
 			CommText:     s.CommText(),
 			FirmwareText: s.FirmwareText(),
 		},
@@ -307,6 +313,72 @@ func (s *rawSnapshot) CellDeltaText() string {
 		return fmt.Sprintf("%d mV (є розбаланс)", d)
 	default:
 		return fmt.Sprintf("%d mV (⚠️ проблема)", d)
+	}
+}
+
+func (s *rawSnapshot) formatMinutes(mins int) string {
+	if mins <= 0 || mins >= 65535 {
+		return "—"
+	}
+
+	h := mins / 60
+	m := mins % 60
+
+	if h > 0 && m > 0 {
+		return fmt.Sprintf("%dг %dхв", h, m)
+	}
+
+	if h > 0 {
+		return fmt.Sprintf("%dг", h)
+	}
+
+	return fmt.Sprintf("%dхв", m)
+}
+
+func (s *rawSnapshot) TimeToChargeText() string {
+	if !s.VBUSPresent() || !s.Charging() {
+		return "—"
+	}
+
+	return s.formatMinutes(s.RemainChgMin)
+}
+
+func (s *rawSnapshot) TimeToDischargeText() string {
+	if s.VBUSPresent() && !s.Discharging() {
+		return "—"
+	}
+
+	if !s.Discharging() {
+		return "—"
+	}
+
+	return s.formatMinutes(s.RemainDisMin)
+}
+
+func (s *rawSnapshot) EtaText() string {
+	switch {
+	case s.Charging():
+		text := s.TimeToChargeText()
+		if text == "—" {
+			return "До повного заряду: —"
+		}
+		return "До повного заряду: " + text
+
+	case s.Discharging():
+		text := s.TimeToDischargeText()
+		if text == "—" {
+			return "Час роботи: —"
+		}
+		return "Час роботи: " + text
+
+	case s.IdleCharging():
+		return "Підтримка заряду"
+
+	case s.VBUSPresent():
+		return "Живлення підключено"
+
+	default:
+		return "ETA недоступний"
 	}
 }
 

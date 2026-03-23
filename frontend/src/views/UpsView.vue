@@ -98,6 +98,24 @@ function normalizeCellMv(mv) {
   const value = ((mv - min) / (max - min)) * 100
   return Math.max(0, Math.min(100, Math.round(value)))
 }
+
+const etaValue = computed(() => {
+  return data.value?.etaText || '—'
+})
+
+const etaDetailValue = computed(() => {
+  if (!data.value) return '—'
+
+  if (data.value.timeToChargeText && data.value.timeToChargeText !== '—') {
+    return `Заряд: ${data.value.timeToChargeText}`
+  }
+
+  if (data.value.timeToDischargeText && data.value.timeToDischargeText !== '—') {
+    return `Робота: ${data.value.timeToDischargeText}`
+  }
+
+  return '—'
+})
 </script>
 
 <template>
@@ -171,7 +189,7 @@ function normalizeCellMv(mv) {
         </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
         <div class="bg-panel rounded-2xl border border-white/10 shadow-custom p-3">
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
@@ -228,6 +246,45 @@ function normalizeCellMv(mv) {
               🔋
             </div>
           </div>
+
+          <div class="bg-panel rounded-2xl border border-white/10 shadow-custom p-3">
+  <div class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      <div class="text-[10px] uppercase tracking-wide text-white/50 mb-1">
+        ETA
+      </div>
+      <div class="text-lg sm:text-2xl font-semibold text-white leading-none">
+        {{ etaValue }}
+      </div>
+    </div>
+
+    <div
+      class="w-9 h-9 rounded-xl bg-violet-400/10 border border-violet-300/10 flex items-center justify-center text-violet-300 shrink-0"
+    >
+      ⏳
+    </div>
+  </div>
+
+  <div class="mt-3 grid grid-cols-1 gap-2">
+    <div class="rounded-xl bg-white/5 border border-white/10 px-2 py-1.5">
+      <div class="text-[10px] uppercase tracking-wide text-white/40">
+        Деталі
+      </div>
+      <div class="text-sm font-medium text-white mt-1 leading-none">
+        {{ etaDetailValue }}
+      </div>
+    </div>
+
+    <div class="rounded-xl bg-white/5 border border-white/10 px-2 py-1.5">
+      <div class="text-[10px] uppercase tracking-wide text-white/40">
+        Режим
+      </div>
+      <div class="text-sm font-medium text-white mt-1 leading-none">
+        {{ data.modeText }}
+      </div>
+    </div>
+  </div>
+</div>
 
           <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div class="rounded-xl bg-white/5 border border-white/10 px-2 py-1.5">

@@ -30,6 +30,12 @@ type Snapshot struct {
 	CellDeltaMV   int    `json:"cellDeltaMv"`
 	CellDeltaText string `json:"cellDeltaText"`
 
+	TimeToChargeMin     int    `json:"timeToChargeMin"`
+	TimeToChargeText    string `json:"timeToChargeText"`
+	TimeToDischargeMin  int    `json:"timeToDischargeMin"`
+	TimeToDischargeText string `json:"timeToDischargeText"`
+	EtaText             string `json:"etaText"`
+
 	CommText     string `json:"commText"`
 	FirmwareText string `json:"firmwareText"`
 }
