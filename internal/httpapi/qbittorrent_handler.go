@@ -3,6 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/drTragger/mykola-miniapp/internal/config"
 	"github.com/drTragger/mykola-miniapp/internal/qbittorrent"
@@ -70,6 +71,41 @@ func (h *qbittorrentHandler) delete(w http.ResponseWriter, r *http.Request) {
 	h.handleHashesAction(w, r, func(req torrentActionRequest) error {
 		return h.client.Delete(req.Hashes, req.DeleteFiles)
 	}, "deleted")
+}
+
+func (h *qbittorrentHandler) getTorrentPeers(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, qbittorrent.TorrentPeersResponse{
+			OK:    false,
+			Error: "method not allowed",
+		})
+		return
+	}
+
+	hash := strings.TrimPrefix(r.URL.Path, "/api/qbittorrent/torrents/")
+	hash = strings.TrimSuffix(hash, "/peers")
+
+	if hash == "" {
+		writeJSON(w, http.StatusBadRequest, qbittorrent.TorrentPeersResponse{
+			OK:    false,
+			Error: "missing torrent hash",
+		})
+		return
+	}
+
+	peers, err := h.client.GetTorrentPeers(hash)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, qbittorrent.TorrentPeersResponse{
+			OK:    false,
+			Error: err.Error(),
+		})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, qbittorrent.TorrentPeersResponse{
+		OK:    true,
+		Peers: peers,
+	})
 }
 
 func (h *qbittorrentHandler) handleHashesAction(

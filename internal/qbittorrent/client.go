@@ -155,6 +155,83 @@ func (c *Client) ListTorrents() ([]Torrent, error) {
 	return result, nil
 }
 
+func (c *Client) GetTorrentPeers(hash string) ([]TorrentPeer, error) {
+	if err := c.ensureLoggedIn(); err != nil {
+		return nil, err
+	}
+
+	endpoint := fmt.Sprintf("%s/api/v2/sync/torrentPeers?hash=%s", c.baseURL, url.QueryEscape(hash))
+
+	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusForbidden {
+		if err := c.ensureLoggedIn(); err != nil {
+			return nil, err
+		}
+		return c.GetTorrentPeers(hash)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("qbittorrent peers failed: %s", strings.TrimSpace(string(body)))
+	}
+
+	var raw struct {
+		Peers map[string]struct {
+			Country     string  `json:"country"`
+			CountryCode string  `json:"country_code"`
+			IP          string  `json:"ip"`
+			Port        int     `json:"port"`
+			Connection  string  `json:"connection"`
+			Flags       string  `json:"flags"`
+			Client      string  `json:"client"`
+			Progress    float64 `json:"progress"`
+			DLRate      int64   `json:"dl_speed"`
+			ULRate      int64   `json:"up_speed"`
+			Downloaded  int64   `json:"downloaded"`
+			Uploaded    int64   `json:"uploaded"`
+			Relevance   float64 `json:"relevance"`
+			Files       string  `json:"files"`
+		} `json:"peers"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, err
+	}
+
+	peers := make([]TorrentPeer, 0, len(raw.Peers))
+
+	for _, peer := range raw.Peers {
+		peers = append(peers, TorrentPeer{
+			Country:     peer.Country,
+			CountryCode: peer.CountryCode,
+			IP:          peer.IP,
+			Port:        peer.Port,
+			Connection:  peer.Connection,
+			Flags:       peer.Flags,
+			Client:      peer.Client,
+			Progress:    peer.Progress,
+			DLRate:      peer.DLRate,
+			ULRate:      peer.ULRate,
+			Downloaded:  peer.Downloaded,
+			Uploaded:    peer.Uploaded,
+			Relevance:   peer.Relevance,
+			Files:       peer.Files,
+		})
+	}
+
+	return peers, nil
+}
+
 func (c *Client) Pause(hashes []string) error {
 	return c.postHashes("/api/v2/torrents/pause", hashes)
 }

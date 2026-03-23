@@ -37,6 +37,14 @@ func NewRouter() (http.Handler, error) {
 	mux.HandleFunc("/api/qbittorrent/torrents/pause", qbHandler.pause)
 	mux.HandleFunc("/api/qbittorrent/torrents/resume", qbHandler.resume)
 	mux.HandleFunc("/api/qbittorrent/torrents/delete", qbHandler.delete)
+	mux.HandleFunc("/api/qbittorrent/torrents/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/peers") {
+			qbHandler.getTorrentPeers(w, r)
+			return
+		}
+
+		http.NotFound(w, r)
+	})
 
 	mux.Handle("/assets/", fileServer)
 

@@ -22,6 +22,23 @@ type Torrent struct {
 	ContentPath string  `json:"contentPath"`
 }
 
+type TorrentPeer struct {
+	Country     string  `json:"country"`
+	CountryCode string  `json:"countryCode"`
+	IP          string  `json:"ip"`
+	Port        int     `json:"port"`
+	Connection  string  `json:"connection"`
+	Flags       string  `json:"flags"`
+	Client      string  `json:"client"`
+	Progress    float64 `json:"progress"`
+	DLRate      int64   `json:"dlRate"`
+	ULRate      int64   `json:"ulRate"`
+	Downloaded  int64   `json:"downloaded"`
+	Uploaded    int64   `json:"uploaded"`
+	Relevance   float64 `json:"relevance"`
+	Files       string  `json:"files"`
+}
+
 type ListResponse struct {
 	OK       bool      `json:"ok"`
 	Torrents []Torrent `json:"torrents"`
@@ -32,4 +49,10 @@ type ActionResponse struct {
 	OK      bool   `json:"ok"`
 	Message string `json:"message,omitempty"`
 	Error   string `json:"error,omitempty"`
+}
+
+type TorrentPeersResponse struct {
+	OK    bool          `json:"ok"`
+	Peers []TorrentPeer `json:"peers"`
+	Error string        `json:"error,omitempty"`
 }

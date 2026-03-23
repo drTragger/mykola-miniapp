@@ -21,6 +21,17 @@ export async function deleteTorrents(hashes, deleteFiles = false) {
   return postAction('/api/qbittorrent/torrents/delete', { hashes, deleteFiles })
 }
 
+export async function fetchTorrentPeers(hash) {
+  const response = await fetch(`/api/qbittorrent/torrents/${encodeURIComponent(hash)}/peers`)
+
+  if (!response.ok) {
+    throw new Error('Не вдалося завантажити піри')
+  }
+
+  const data = await response.json()
+  return data.peers || []
+}
+
 async function postAction(url, payload) {
   const response = await fetch(url, {
     method: 'POST',

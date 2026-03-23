@@ -9,6 +9,7 @@ import ProgressBar from 'primevue/progressbar'
 import Menu from 'primevue/menu'
 import {
   fetchTorrents,
+  fetchTorrentPeers,
   pauseTorrents,
   resumeTorrents,
   deleteTorrents
@@ -32,11 +33,17 @@ const deleteFiles = ref(false)
 const deleteTargetHashes = ref([])
 
 const refreshIntervalId = ref(null)
+const peersRefreshIntervalId = ref(null)
 const actionLoading = ref(false)
 
 const rowActionMenu = ref()
 const rowActionTorrent = ref(null)
 const searchInputRef = ref(null)
+
+const expandedTorrentHashes = ref([])
+const peersByHash = ref({})
+const peersLoadingByHash = ref({})
+const peersErrorByHash = ref({})
 
 const filteredTorrents = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -60,6 +67,24 @@ const rowActionItems = computed(() => {
   }
 
   const items = []
+
+  if (isExpanded(rowActionTorrent.value.hash)) {
+    items.push({
+      label: 'Згорнути',
+      icon: 'pi pi-angle-up !text-sky-400',
+      command: () => {
+        toggleExpanded(rowActionTorrent.value)
+      }
+    })
+  } else {
+    items.push({
+      label: 'Розгорнути',
+      icon: 'pi pi-angle-down !text-sky-400',
+      command: async () => {
+        await toggleExpanded(rowActionTorrent.value)
+      }
+    })
+  }
 
   if (isPausedState(rowActionTorrent.value.state)) {
     items.push({
@@ -120,6 +145,65 @@ function isPausedState(state) {
   return ['pausedDL', 'pausedUP'].includes(state)
 }
 
+function isExpanded(hash) {
+  return expandedTorrentHashes.value.includes(hash)
+}
+
+async function toggleExpanded(torrent) {
+  const hash = torrent.hash
+
+  if (isExpanded(hash)) {
+    expandedTorrentHashes.value = expandedTorrentHashes.value.filter((item) => item !== hash)
+    return
+  }
+
+  expandedTorrentHashes.value = [...expandedTorrentHashes.value, hash]
+
+  if (!peersByHash.value[hash]) {
+    await loadTorrentPeers(hash)
+  }
+}
+
+async function loadTorrentPeers(hash, { silent = false } = {}) {
+  if (!silent) {
+    peersLoadingByHash.value = {
+      ...peersLoadingByHash.value,
+      [hash]: true
+    }
+  }
+
+  peersErrorByHash.value = {
+    ...peersErrorByHash.value,
+    [hash]: ''
+  }
+
+  try {
+    const peers = await fetchTorrentPeers(hash)
+    peersByHash.value = {
+      ...peersByHash.value,
+      [hash]: peers
+    }
+  } catch (e) {
+    peersErrorByHash.value = {
+      ...peersErrorByHash.value,
+      [hash]: e.message || 'Не вдалося завантажити піри'
+    }
+  } finally {
+    peersLoadingByHash.value = {
+      ...peersLoadingByHash.value,
+      [hash]: false
+    }
+  }
+}
+
+async function refreshExpandedPeers() {
+  const hashes = [...expandedTorrentHashes.value]
+
+  await Promise.allSettled(
+    hashes.map((hash) => loadTorrentPeers(hash, { silent: true }))
+  )
+}
+
 async function loadTorrents({ silent = false } = {}) {
   if (!silent) {
     loading.value = true
@@ -144,12 +228,21 @@ function startAutoRefresh() {
   refreshIntervalId.value = setInterval(() => {
     loadTorrents({ silent: true })
   }, 10000)
+
+  peersRefreshIntervalId.value = setInterval(() => {
+    refreshExpandedPeers()
+  }, 12000)
 }
 
 function stopAutoRefresh() {
   if (refreshIntervalId.value) {
     clearInterval(refreshIntervalId.value)
     refreshIntervalId.value = null
+  }
+
+  if (peersRefreshIntervalId.value) {
+    clearInterval(peersRefreshIntervalId.value)
+    peersRefreshIntervalId.value = null
   }
 }
 
@@ -309,6 +402,19 @@ function formatEta(seconds) {
 
 function formatRatio(value) {
   return Number(value || 0).toFixed(2)
+}
+
+function formatPeerPercent(progress) {
+  return `${((Number(progress || 0)) * 100).toFixed(0)}%`
+}
+
+function peerConnectionLabel(value) {
+  const map = {
+    'µTP': 'uTP',
+    'BT': 'TCP'
+  }
+
+  return map[value] || value || '—'
 }
 
 function stateLabel(state) {
@@ -527,6 +633,119 @@ onBeforeUnmount(() => {
               <div class="text-white/45">Ratio</div>
               <div class="text-white text-right xl:text-left xl:col-span-2 whitespace-nowrap text-[13px] sm:text-sm">
                 {{ formatRatio(torrent.ratio) }}
+              </div>
+            </div>
+
+            <div
+              v-if="isExpanded(torrent.hash)"
+              class="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3"
+            >
+              <div class="flex items-center justify-between gap-3 mb-3">
+                <div class="text-[10px] uppercase tracking-wide text-white/50">
+                  Піри
+                </div>
+
+                <Button
+                  icon="pi pi-refresh"
+                  size="small"
+                  text
+                  rounded
+                  :loading="!!peersLoadingByHash[torrent.hash]"
+                  @click="loadTorrentPeers(torrent.hash)"
+                />
+              </div>
+
+              <div
+                v-if="peersErrorByHash[torrent.hash]"
+                class="text-sm text-red-300"
+              >
+                {{ peersErrorByHash[torrent.hash] }}
+              </div>
+
+              <div
+                v-else-if="peersLoadingByHash[torrent.hash] && !peersByHash[torrent.hash]?.length"
+                class="text-sm text-white/50"
+              >
+                Завантаження пірів...
+              </div>
+
+              <div
+                v-else-if="!peersByHash[torrent.hash]?.length"
+                class="text-sm text-white/50"
+              >
+                Немає активних пірів
+              </div>
+
+              <div
+                v-else
+                class="space-y-2"
+              >
+                <div
+                  v-for="peer in peersByHash[torrent.hash]"
+                  :key="`${torrent.hash}-${peer.ip}-${peer.port}`"
+                  class="rounded-xl border border-white/10 bg-white/[0.02] p-3"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="text-sm font-medium text-white break-all">
+                        {{ peer.ip }}:{{ peer.port }}
+                      </div>
+
+                      <div class="mt-1 flex flex-wrap gap-2">
+                        <Tag
+                          v-if="peer.country"
+                          :value="peer.country"
+                          severity="secondary"
+                        />
+                        <Tag
+                          :value="peerConnectionLabel(peer.connection)"
+                          severity="info"
+                        />
+                        <Tag
+                          v-if="peer.client"
+                          :value="peer.client"
+                          severity="contrast"
+                        />
+                      </div>
+                    </div>
+
+                    <div class="text-xs text-white/45 shrink-0">
+                      {{ formatPeerPercent(peer.progress) }}
+                    </div>
+                  </div>
+
+                  <div class="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                    <div class="text-white/45">Завантаження</div>
+                    <div class="text-white text-right whitespace-nowrap text-[13px] sm:text-sm">
+                      ↓ {{ formatSpeed(peer.dlRate) }}
+                    </div>
+
+                    <div class="text-white/45">Відвантаження</div>
+                    <div class="text-white text-right whitespace-nowrap text-[13px] sm:text-sm">
+                      ↑ {{ formatSpeed(peer.ulRate) }}
+                    </div>
+
+                    <div class="text-white/45">Отримано</div>
+                    <div class="text-white text-right text-[13px] sm:text-sm">
+                      {{ formatBytes(peer.downloaded) }}
+                    </div>
+
+                    <div class="text-white/45">Віддано</div>
+                    <div class="text-white text-right text-[13px] sm:text-sm">
+                      {{ formatBytes(peer.uploaded) }}
+                    </div>
+
+                    <div class="text-white/45">Relevance</div>
+                    <div class="text-white text-right text-[13px] sm:text-sm">
+                      {{ formatRatio(peer.relevance) }}
+                    </div>
+
+                    <div class="text-white/45">Flags</div>
+                    <div class="text-white text-right break-all text-[13px] sm:text-sm">
+                      {{ peer.flags || '—' }}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
