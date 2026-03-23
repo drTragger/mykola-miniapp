@@ -1,8 +1,9 @@
-export async function fetchTorrents() {
-  const response = await fetch('/api/qbittorrent/torrents')
-  const data = await response.json()
+import { apiGet, apiPost } from './client'
 
-  if (!response.ok || !data.ok) {
+export async function fetchTorrents() {
+  const data = await apiGet('/api/qbittorrent/torrents')
+
+  if (!data.ok) {
     throw new Error(data.error || 'Не вдалося завантажити торенти')
   }
 
@@ -22,28 +23,14 @@ export async function deleteTorrents(hashes, deleteFiles = false) {
 }
 
 export async function fetchTorrentPeers(hash) {
-  const response = await fetch(`/api/qbittorrent/torrents/${encodeURIComponent(hash)}/peers`)
-
-  if (!response.ok) {
-    throw new Error('Не вдалося завантажити піри')
-  }
-
-  const data = await response.json()
+  const data = await apiGet(`/api/qbittorrent/torrents/${encodeURIComponent(hash)}/peers`)
   return data.peers || []
 }
 
 async function postAction(url, payload) {
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  })
+  const data = await apiPost(url, payload)
 
-  const data = await response.json()
-
-  if (!response.ok || !data.ok) {
+  if (!data.ok) {
     throw new Error(data.error || 'Помилка запиту')
   }
 

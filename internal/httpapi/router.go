@@ -7,10 +7,13 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/drTragger/mykola-miniapp/internal/config"
 	"github.com/drTragger/mykola-miniapp/internal/web"
 )
 
 func NewRouter() (http.Handler, error) {
+	cfg := config.Load()
+
 	staticFiles, err := web.StaticFS()
 	if err != nil {
 		return nil, err
@@ -20,25 +23,27 @@ func NewRouter() (http.Handler, error) {
 	fileServer := http.FileServer(fileSystem)
 
 	mux := http.NewServeMux()
+	apiMux := http.NewServeMux()
 
 	mux.HandleFunc("/api/health", healthHandler)
-	mux.HandleFunc("/api/metrics", metricsHandler)
-	mux.HandleFunc("/api/ups", upsHandler)
-	mux.HandleFunc("/api/ups/battery", upsBatteryHandler)
-	mux.HandleFunc("/api/ups/history", upsHistoryHandler)
-	mux.HandleFunc("/api/system", systemHandler)
-	mux.HandleFunc("/api/vpn/summary", vpnSummaryHandler)
+
+	apiMux.HandleFunc("/api/metrics", metricsHandler)
+	apiMux.HandleFunc("/api/ups", upsHandler)
+	apiMux.HandleFunc("/api/ups/battery", upsBatteryHandler)
+	apiMux.HandleFunc("/api/ups/history", upsHistoryHandler)
+	apiMux.HandleFunc("/api/system", systemHandler)
+	apiMux.HandleFunc("/api/vpn/summary", vpnSummaryHandler)
 
 	qbHandler, err := newQBittorrentHandler()
 	if err != nil {
 		return nil, err
 	}
 
-	mux.HandleFunc("/api/qbittorrent/torrents", qbHandler.list)
-	mux.HandleFunc("/api/qbittorrent/torrents/pause", qbHandler.pause)
-	mux.HandleFunc("/api/qbittorrent/torrents/resume", qbHandler.resume)
-	mux.HandleFunc("/api/qbittorrent/torrents/delete", qbHandler.delete)
-	mux.HandleFunc("/api/qbittorrent/torrents/", func(w http.ResponseWriter, r *http.Request) {
+	apiMux.HandleFunc("/api/qbittorrent/torrents", qbHandler.list)
+	apiMux.HandleFunc("/api/qbittorrent/torrents/pause", qbHandler.pause)
+	apiMux.HandleFunc("/api/qbittorrent/torrents/resume", qbHandler.resume)
+	apiMux.HandleFunc("/api/qbittorrent/torrents/delete", qbHandler.delete)
+	apiMux.HandleFunc("/api/qbittorrent/torrents/", func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/peers") {
 			qbHandler.getTorrentPeers(w, r)
 			return
@@ -46,6 +51,8 @@ func NewRouter() (http.Handler, error) {
 
 		http.NotFound(w, r)
 	})
+
+	mux.Handle("/api/", telegramAuthMiddleware(cfg, apiMux))
 
 	mux.Handle("/assets/", fileServer)
 
