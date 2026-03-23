@@ -18,8 +18,15 @@ import { useMetricsHistory } from './composables/useMetricsHistory'
 import mykolaImage from './assets/mykola-1.png'
 
 const tg = window.Telegram?.WebApp
-tg?.ready()
-tg?.expand()
+
+const isTelegramApp = computed(() => {
+  return Boolean(tg && tg.initData && tg.initData.length > 0)
+})
+
+if (isTelegramApp.value) {
+  tg.ready()
+  tg.expand()
+}
 
 const activeTab = ref('overview')
 const status = ref('Завантаження...')
@@ -211,6 +218,10 @@ async function refreshAllData() {
 }
 
 watch(activeTab, async (tab) => {
+  if (!isTelegramApp.value) {
+    return
+  }
+
   if (tab === 'ups') {
     await Promise.all([
       loadUps(),
@@ -227,6 +238,11 @@ watch(activeTab, async (tab) => {
 })
 
 onMounted(() => {
+  if (!isTelegramApp.value) {
+    status.value = 'Недоступно поза Telegram'
+    return
+  }
+
   const topInset = tg?.contentSafeAreaInset?.top
     ?? tg?.safeAreaInset?.top
     ?? 0
@@ -266,7 +282,32 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="app-shell max-w-[920px] mx-auto px-4 pb-32 space-y-4">
+  <div
+    v-if="!isTelegramApp"
+    class="min-h-screen flex items-center justify-center px-4"
+  >
+    <div class="max-w-md w-full bg-panel rounded-3xl border border-white/10 shadow-custom p-6 text-center">
+      <div
+        class="w-16 h-16 mx-auto rounded-2xl bg-primary/15 border border-primary/20 flex items-center justify-center text-2xl mb-4"
+      >
+        📱
+      </div>
+
+      <div class="text-xl font-semibold text-white mb-2">
+        Доступ лише через Telegram
+      </div>
+
+      <div class="text-sm text-white/60 leading-relaxed">
+        Цей застосунок працює тільки всередині Telegram Mini App.
+        Відкрий його через свого бота або через головний застосунок у Telegram.
+      </div>
+    </div>
+  </div>
+
+  <div
+    v-else
+    class="app-shell max-w-[920px] mx-auto px-4 pb-32 space-y-4"
+  >
     <AppHeader :subtitle-lines="subtitleLines" :status="status" />
 
     <DeviceHero
