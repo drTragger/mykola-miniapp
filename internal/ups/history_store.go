@@ -127,6 +127,10 @@ func cleanupOldHistory() error {
 	return nil
 }
 
+func InitHistory() error {
+	return initHistoryDB()
+}
+
 func GetHistory(limit int) ([]HistoryPoint, error) {
 	if err := initHistoryDB(); err != nil {
 		return nil, err
@@ -177,4 +181,29 @@ func GetHistory(limit int) ([]HistoryPoint, error) {
 	}
 
 	return points, nil
+}
+
+func StartHistoryCollector() {
+	save := func() {
+		resp, err := GetSnapshot()
+		if err != nil {
+			return
+		}
+
+		collectedAt, err := time.Parse(time.RFC3339, resp.CollectedAt)
+		if err != nil {
+			collectedAt = time.Now()
+		}
+
+		_ = storeHistorySnapshot(resp.Data, collectedAt)
+	}
+
+	save()
+
+	ticker := time.NewTicker(historySampleInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		save()
+	}
 }

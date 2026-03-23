@@ -16,9 +16,14 @@ import (
 func main() {
 	cfg := config.Load()
 
+	if err := ups.InitHistory(); err != nil {
+		log.Fatal(err)
+	}
+
 	metrics.StartBackgroundRefresh(5 * time.Second)
 	ups.StartBackgroundRefresh(5 * time.Second)
 	system.StartBackgroundRefresh(15 * time.Second)
+	go ups.StartHistoryCollector()
 
 	go telegram.StartBot(cfg)
 
