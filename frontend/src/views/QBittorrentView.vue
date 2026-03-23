@@ -36,17 +36,7 @@ const actionLoading = ref(false)
 
 const rowActionMenu = ref()
 const rowActionTorrent = ref(null)
-
 const searchInputRef = ref(null)
-
-function blurSearch() {
-  const input =
-    searchInputRef.value?.$el?.querySelector('input') ||
-    searchInputRef.value?.input ||
-    searchInputRef.value
-
-  input?.blur?.()
-}
 
 const filteredTorrents = computed(() => {
   const term = search.value.trim().toLowerCase()
@@ -105,11 +95,20 @@ const rowActionItems = computed(() => {
 
   return [
     {
-        label: 'Дії',
-        items: items
+      label: 'Дії',
+      items
     }
   ]
 })
+
+function blurSearch() {
+  const input =
+    searchInputRef.value?.$el?.querySelector('input') ||
+    searchInputRef.value?.input ||
+    searchInputRef.value
+
+  input?.blur?.()
+}
 
 function toggleRowActionMenu(event, torrent) {
   blurSearch()
@@ -193,6 +192,7 @@ async function handleResumeSelected() {
 }
 
 function openDeleteDialog(hashes) {
+  blurSearch()
   deleteTargetHashes.value = hashes
   deleteFiles.value = false
   deleteDialogVisible.value = true
@@ -206,10 +206,12 @@ function askDeleteSelected() {
 }
 
 function askDeleteOne(torrent) {
+  blurSearch()
   openDeleteDialog([torrent.hash])
 }
 
 async function confirmDelete() {
+  blurSearch()
   if (!deleteTargetHashes.value.length) return
 
   actionLoading.value = true
@@ -228,6 +230,7 @@ async function confirmDelete() {
 }
 
 async function pauseOne(torrent) {
+  blurSearch()
   actionLoading.value = true
   try {
     await pauseTorrents([torrent.hash])
@@ -240,6 +243,7 @@ async function pauseOne(torrent) {
 }
 
 async function resumeOne(torrent) {
+  blurSearch()
   actionLoading.value = true
   try {
     await resumeTorrents([torrent.hash])
@@ -383,14 +387,24 @@ onBeforeUnmount(() => {
           />
         </div>
 
-        <InputText
-          ref="searchInputRef"
-          v-model="search"
-          placeholder="Пошук торентів"
-          size="small"
-          fluid
-          @keydown.enter="blurSearch"
-        />
+        <div class="flex items-center gap-2">
+          <InputText
+            ref="searchInputRef"
+            v-model="search"
+            placeholder="Пошук торентів"
+            size="small"
+            fluid
+            @keydown.enter="blurSearch"
+          />
+
+          <Button
+            icon="pi pi-check"
+            text
+            rounded
+            aria-label="Готово"
+            @click="blurSearch"
+          />
+        </div>
       </div>
     </div>
 
@@ -490,30 +504,30 @@ onBeforeUnmount(() => {
             </div>
 
             <div class="mt-3 grid grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-2 text-sm">
-                <div class="text-white/45">Швидкість</div>
-                <div class="text-white text-right xl:text-left xl:col-span-2 whitespace-nowrap text-[13px] sm:text-sm">
-                    ↓ {{ formatSpeed(torrent.dlSpeed) }} · ↑ {{ formatSpeed(torrent.upSpeed) }}
-                </div>
+              <div class="text-white/45">Швидкість</div>
+              <div class="text-white text-right xl:text-left xl:col-span-2 whitespace-nowrap text-[13px] sm:text-sm">
+                ↓ {{ formatSpeed(torrent.dlSpeed) }} · ↑ {{ formatSpeed(torrent.upSpeed) }}
+              </div>
 
-                <div class="text-white/45">Розмір</div>
-                <div class="text-white text-right xl:text-left xl:col-span-2 break-words text-[13px] sm:text-sm">
-                    {{ formatBytes(torrent.downloaded) }} / {{ formatBytes(torrent.totalSize || torrent.size) }}
-                </div>
+              <div class="text-white/45">Розмір</div>
+              <div class="text-white text-right xl:text-left xl:col-span-2 break-words text-[13px] sm:text-sm">
+                {{ formatBytes(torrent.downloaded) }} / {{ formatBytes(torrent.totalSize || torrent.size) }}
+              </div>
 
-                <div class="text-white/45">ETA</div>
-                <div class="text-white text-right xl:text-left xl:col-span-2 text-[13px] sm:text-sm">
-                    {{ formatEta(torrent.eta) }}
-                </div>
+              <div class="text-white/45">ETA</div>
+              <div class="text-white text-right xl:text-left xl:col-span-2 text-[13px] sm:text-sm">
+                {{ formatEta(torrent.eta) }}
+              </div>
 
-                <div class="text-white/45">Seeds / Leechs</div>
-                <div class="text-white text-right xl:text-left xl:col-span-2 whitespace-nowrap text-[13px] sm:text-sm">
-                    {{ torrent.numSeeds ?? 0 }} / {{ torrent.numLeechs ?? 0 }}
-                </div>
+              <div class="text-white/45">Seeds / Leechs</div>
+              <div class="text-white text-right xl:text-left xl:col-span-2 whitespace-nowrap text-[13px] sm:text-sm">
+                {{ torrent.numSeeds ?? 0 }} / {{ torrent.numLeechs ?? 0 }}
+              </div>
 
-                <div class="text-white/45">Ratio</div>
-                <div class="text-white text-right xl:text-left xl:col-span-2 whitespace-nowrap text-[13px] sm:text-sm">
-                    {{ formatRatio(torrent.ratio) }}
-                </div>
+              <div class="text-white/45">Ratio</div>
+              <div class="text-white text-right xl:text-left xl:col-span-2 whitespace-nowrap text-[13px] sm:text-sm">
+                {{ formatRatio(torrent.ratio) }}
+              </div>
             </div>
           </div>
         </div>
