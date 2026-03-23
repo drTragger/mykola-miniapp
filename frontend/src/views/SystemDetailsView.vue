@@ -230,25 +230,33 @@ function connectionIcon(type) {
             </div>
           </div>
 
-          <div class="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <div class="text-white/45">IP / Host</div>
-            <div class="text-white text-right break-all">
-              {{ user.remoteIp || user.from || '—' }}
+          <div class="mt-3 space-y-2.5">
+            <div class="grid grid-cols-[88px_minmax(0,1fr)] items-start gap-x-3 text-sm">
+              <div class="text-white/45">IP / Host</div>
+              <div class="min-w-0 text-white text-right break-all text-[12px] sm:text-sm">
+                {{ user.remoteIp || user.from || '—' }}
+              </div>
             </div>
 
-            <div class="text-white/45">Локація</div>
-            <div class="text-white text-right break-all">
-              {{ user.location || '—' }}
+            <div class="grid grid-cols-[88px_minmax(0,1fr)] items-start gap-x-3 text-sm">
+              <div class="text-white/45">Локація</div>
+              <div class="min-w-0 text-white text-right break-words text-[12px] sm:text-sm">
+                {{ user.location || '—' }}
+              </div>
             </div>
 
-            <div class="text-white/45">Вхід</div>
-            <div class="text-white text-right break-all">
-              {{ user.loginAt || '—' }}
+            <div class="grid grid-cols-[88px_minmax(0,1fr)] items-start gap-x-3 text-sm">
+              <div class="text-white/45">Вхід</div>
+              <div class="min-w-0 text-white text-right break-words text-[12px] sm:text-sm">
+                {{ user.loginAt || '—' }}
+              </div>
             </div>
 
-            <div class="text-white/45">Idle</div>
-            <div class="text-white text-right">
-              {{ user.idle || '—' }}
+            <div class="grid grid-cols-[88px_minmax(0,1fr)] items-start gap-x-3 text-sm">
+              <div class="text-white/45">Idle</div>
+              <div class="min-w-0 text-white text-right text-[12px] sm:text-sm">
+                {{ user.idle || '—' }}
+              </div>
             </div>
           </div>
         </div>
