@@ -21,6 +21,10 @@ type Config struct {
 		Username string `toml:"username"`
 		Password string `toml:"password"`
 	} `toml:"qbittorrent"`
+
+	Debug struct {
+		AllowDevBypass bool `toml:"allow_dev_bypass"`
+	}
 }
 
 func Load() Config {

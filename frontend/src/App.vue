@@ -19,8 +19,18 @@ import mykolaImage from './assets/mykola-1.png'
 
 const tg = window.Telegram?.WebApp
 
+const isDev = import.meta.env.DEV
+
 const isTelegramApp = computed(() => {
   return Boolean(tg && tg.initData && tg.initData.length > 0)
+})
+
+const allowStandaloneDebug = computed(() => {
+  return isDev
+})
+
+const canRenderApp = computed(() => {
+  return isTelegramApp.value || allowStandaloneDebug.value
 })
 
 if (isTelegramApp.value) {
@@ -218,7 +228,7 @@ async function refreshAllData() {
 }
 
 watch(activeTab, async (tab) => {
-  if (!isTelegramApp.value) {
+  if (!canRenderApp.value) {
     return
   }
 
@@ -238,7 +248,7 @@ watch(activeTab, async (tab) => {
 })
 
 onMounted(() => {
-  if (!isTelegramApp.value) {
+  if (!canRenderApp.value) {
     status.value = 'Недоступно поза Telegram'
     return
   }
@@ -283,7 +293,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    v-if="!isTelegramApp"
+    v-if="!canRenderApp"
     class="min-h-screen flex items-center justify-center px-4"
   >
     <div class="max-w-md w-full bg-panel rounded-3xl border border-white/10 shadow-custom p-6 text-center">

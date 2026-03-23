@@ -1,22 +1,27 @@
 const tg = window.Telegram?.WebApp
+const isDev = import.meta.env.DEV
 
-function getInitData() {
-  const initData = tg?.initData || ''
+function getHeaders(extra = {}) {
+  const headers = { ...extra }
 
-  if (!initData) {
-    throw new Error('Mini App доступний лише в Telegram')
+  if (tg?.initData) {
+    headers['X-Telegram-Init-Data'] = tg.initData
+    return headers
   }
 
-  return initData
+  if (isDev) {
+    headers['X-Debug-Dev-Access'] = '1'
+    return headers
+  }
+
+  throw new Error('Mini App доступний лише в Telegram')
 }
 
 export async function apiGet(url) {
   const response = await fetch(url, {
     method: 'GET',
     cache: 'no-store',
-    headers: {
-      'X-Telegram-Init-Data': getInitData()
-    }
+    headers: getHeaders()
   })
 
   if (!response.ok) {
@@ -30,10 +35,9 @@ export async function apiPost(url, body) {
   const response = await fetch(url, {
     method: 'POST',
     cache: 'no-store',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Telegram-Init-Data': getInitData()
-    },
+    headers: getHeaders({
+      'Content-Type': 'application/json'
+    }),
     body: JSON.stringify(body)
   })
 

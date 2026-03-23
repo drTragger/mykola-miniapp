@@ -1,6 +1,9 @@
 [app]
 addr = ":8090"
 
+[debug]
+allow_dev_bypass = false
+
 [telegram]
 token = "YOUR_TELEGRAM_BOT_TOKEN"
 admin_ids = [123456789]
