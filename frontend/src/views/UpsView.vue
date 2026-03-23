@@ -92,30 +92,40 @@ const deltaSeverityClass = computed(() => {
   return 'bg-red-500/10 text-red-300 border-red-500/20'
 })
 
+const etaValue = computed(() => {
+  if (!data.value) return '—'
+
+  if (data.value.timeToChargeText && data.value.timeToChargeText !== '—') {
+    return data.value.timeToChargeText
+  }
+
+  if (data.value.timeToDischargeText && data.value.timeToDischargeText !== '—') {
+    return data.value.timeToDischargeText
+  }
+
+  return '—'
+})
+
+const etaLabel = computed(() => {
+  if (!data.value) return 'ETA'
+
+  if (data.value.timeToChargeText && data.value.timeToChargeText !== '—') {
+    return 'До повного заряду'
+  }
+
+  if (data.value.timeToDischargeText && data.value.timeToDischargeText !== '—') {
+    return 'Час роботи'
+  }
+
+  return 'ETA'
+})
+
 function normalizeCellMv(mv) {
   const min = 3000
   const max = 4200
   const value = ((mv - min) / (max - min)) * 100
   return Math.max(0, Math.min(100, Math.round(value)))
 }
-
-const etaValue = computed(() => {
-  return data.value?.etaText || '—'
-})
-
-const etaDetailValue = computed(() => {
-  if (!data.value) return '—'
-
-  if (data.value.timeToChargeText && data.value.timeToChargeText !== '—') {
-    return `Заряд: ${data.value.timeToChargeText}`
-  }
-
-  if (data.value.timeToDischargeText && data.value.timeToDischargeText !== '—') {
-    return `Робота: ${data.value.timeToDischargeText}`
-  }
-
-  return '—'
-})
 </script>
 
 <template>
@@ -137,9 +147,9 @@ const etaDetailValue = computed(() => {
     <template v-else-if="data">
       <div class="bg-panel rounded-3xl border border-white/10 shadow-custom p-4">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div class="flex items-center gap-4">
+          <div class="flex items-center gap-4 min-w-0">
             <div
-              class="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/10 border border-white/10 flex items-center justify-center"
+              class="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/10 border border-white/10 flex items-center justify-center shrink-0"
             >
               <img
                 :src="batteryIcon"
@@ -148,14 +158,14 @@ const etaDetailValue = computed(() => {
               />
             </div>
 
-            <div>
+            <div class="min-w-0">
               <div class="text-[10px] uppercase tracking-[0.2em] text-white/50 mb-1">
                 UPS HAT (E)
               </div>
               <div class="text-2xl sm:text-3xl font-bold text-white">
                 {{ batteryValue }}
               </div>
-              <div class="text-sm text-white/50 mt-1">
+              <div class="text-sm text-white/50 mt-1 break-words">
                 {{ batteryCapacityText }}
               </div>
             </div>
@@ -182,14 +192,23 @@ const etaDetailValue = computed(() => {
             :showValue="false"
             class="ups-battery-bar"
           />
-          <div class="mt-2 flex justify-between text-xs text-white/40">
-            <span>0%</span>
-            <span>100%</span>
+
+          <div class="mt-2 flex items-start justify-between gap-3">
+            <div class="text-xs text-white/40">0%</div>
+
+            <div
+              class="max-w-[65%] rounded-full border border-violet-400/15 bg-violet-400/10 px-3 py-1 text-[11px] sm:text-xs text-violet-200 text-right leading-tight"
+            >
+              <span class="text-white/55 mr-1">{{ etaLabel }}:</span>
+              <span class="font-medium">{{ etaValue }}</span>
+            </div>
+
+            <div class="text-xs text-white/40">100%</div>
           </div>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+      <div class="grid grid-cols-2 gap-3">
         <div class="bg-panel rounded-2xl border border-white/10 shadow-custom p-3">
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
@@ -246,45 +265,6 @@ const etaDetailValue = computed(() => {
               🔋
             </div>
           </div>
-
-          <div class="bg-panel rounded-2xl border border-white/10 shadow-custom p-3">
-  <div class="flex items-start justify-between gap-3">
-    <div class="min-w-0">
-      <div class="text-[10px] uppercase tracking-wide text-white/50 mb-1">
-        ETA
-      </div>
-      <div class="text-lg sm:text-2xl font-semibold text-white leading-none">
-        {{ etaValue }}
-      </div>
-    </div>
-
-    <div
-      class="w-9 h-9 rounded-xl bg-violet-400/10 border border-violet-300/10 flex items-center justify-center text-violet-300 shrink-0"
-    >
-      ⏳
-    </div>
-  </div>
-
-  <div class="mt-3 grid grid-cols-1 gap-2">
-    <div class="rounded-xl bg-white/5 border border-white/10 px-2 py-1.5">
-      <div class="text-[10px] uppercase tracking-wide text-white/40">
-        Деталі
-      </div>
-      <div class="text-sm font-medium text-white mt-1 leading-none">
-        {{ etaDetailValue }}
-      </div>
-    </div>
-
-    <div class="rounded-xl bg-white/5 border border-white/10 px-2 py-1.5">
-      <div class="text-[10px] uppercase tracking-wide text-white/40">
-        Режим
-      </div>
-      <div class="text-sm font-medium text-white mt-1 leading-none">
-        {{ data.modeText }}
-      </div>
-    </div>
-  </div>
-</div>
 
           <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div class="rounded-xl bg-white/5 border border-white/10 px-2 py-1.5">
