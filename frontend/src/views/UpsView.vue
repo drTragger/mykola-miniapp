@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import ProgressBar from 'primevue/progressbar'
+import MiniTrendChart from '../components/MiniTrendChart.vue'
 import batteryIcon from '../assets/battery.png'
 
 const props = defineProps({
@@ -15,6 +16,14 @@ const props = defineProps({
   error: {
     type: String,
     default: ''
+  },
+  batteryPercentHistory: {
+    type: Array,
+    default: () => []
+  },
+  cellDeltaHistory: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -277,6 +286,44 @@ function normalizeCellMv(mv) {
               :showValue="false"
               class="ups-cell-bar"
             />
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <div class="px-1 text-[10px] sm:text-xs uppercase tracking-wide text-white/60">
+          Історія UPS
+        </div>
+
+        <div class="-mx-4 px-4 overflow-x-auto no-scrollbar">
+          <div class="flex gap-4 min-w-max pr-4">
+            <div class="w-[320px] sm:w-[420px] lg:w-[480px] shrink-0">
+              <MiniTrendChart
+                title="Заряд акумулятора"
+                subtitle="Останні виміри"
+                :points="batteryPercentHistory"
+                color="#34D399"
+                :min="0"
+                :max="100"
+                :step-size="25"
+                :show-time-axis="true"
+                :formatter="(value) => `${value.toFixed(0)}%`"
+              />
+            </div>
+
+            <div class="w-[320px] sm:w-[420px] lg:w-[480px] shrink-0">
+              <MiniTrendChart
+                title="Дельта банок"
+                subtitle="Різниця між банками"
+                :points="cellDeltaHistory"
+                color="#F59E0B"
+                :min="0"
+                :max="300"
+                :step-size="50"
+                :show-time-axis="true"
+                :formatter="(value) => `${value.toFixed(0)} mV`"
+              />
+            </div>
           </div>
         </div>
       </div>

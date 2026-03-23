@@ -22,6 +22,22 @@ const props = defineProps({
   formatter: {
     type: Function,
     default: (value) => String(value)
+  },
+  min: {
+    type: Number,
+    default: null
+  },
+  max: {
+    type: Number,
+    default: null
+  },
+  stepSize: {
+    type: Number,
+    default: null
+  },
+  showTimeAxis: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -53,11 +69,12 @@ const chartData = computed(() => ({
       data: values.value,
       fill: true,
       borderColor: props.color,
-      backgroundColor: hexToRgba(props.color, 0.12),
+      backgroundColor: hexToRgba(props.color, 0.10),
       tension: 0.35,
-      borderWidth: 3,
+      borderWidth: 2,
       pointRadius: 0,
       pointHoverRadius: 3,
+      pointHitRadius: 10,
       clip: 0
     }
   ]
@@ -69,10 +86,10 @@ const chartOptions = computed(() => ({
   animation: false,
   layout: {
     padding: {
-      top: 6,
-      right: 6,
+      top: 2,
+      right: 2,
       bottom: 0,
-      left: 6
+      left: 2
     }
   },
   plugins: {
@@ -80,20 +97,49 @@ const chartOptions = computed(() => ({
     tooltip: {
       displayColors: false,
       callbacks: {
+        title: (items) => items?.[0]?.label || '',
         label: (context) => props.formatter(context.parsed.y)
       }
     }
   },
   scales: {
     x: {
-      display: false,
-      grid: { display: false },
-      border: { display: false }
+      display: props.showTimeAxis,
+      ticks: {
+        color: 'rgba(255,255,255,0.38)',
+        font: {
+          size: 10
+        },
+        maxRotation: 0,
+        autoSkip: true,
+        maxTicksLimit: 5
+      },
+      grid: {
+        display: false
+      },
+      border: {
+        display: false
+      }
     },
     y: {
-      display: false,
-      grid: { display: false },
-      border: { display: false }
+      display: true,
+      min: props.min ?? undefined,
+      max: props.max ?? undefined,
+      ticks: {
+        color: 'rgba(255,255,255,0.38)',
+        font: {
+          size: 10
+        },
+        stepSize: props.stepSize ?? undefined,
+        callback: (value) => props.formatter(Number(value))
+      },
+      grid: {
+        color: 'rgba(255,255,255,0.06)',
+        drawBorder: false
+      },
+      border: {
+        display: false
+      }
     }
   }
 }))
@@ -101,17 +147,17 @@ const chartOptions = computed(() => ({
 
 <template>
   <div
-    class="bg-panel rounded-2xl p-4 shadow-custom border border-white/10 flex flex-col overflow-hidden min-h-[180px]"
+    class="bg-panel rounded-2xl p-3 shadow-custom border border-white/10 flex flex-col overflow-hidden min-h-[210px]"
   >
     <div class="text-[10px] sm:text-xs uppercase tracking-wide text-white/70 mb-1">
       {{ title }}
     </div>
 
-    <div class="text-[10px] sm:text-xs text-white/50 mb-3">
+    <div class="text-[10px] sm:text-xs text-white/50 mb-2">
       {{ subtitle }}
     </div>
 
-    <div class="h-[110px] sm:h-[130px] relative overflow-hidden">
+    <div class="h-[145px] sm:h-[165px] relative overflow-hidden">
       <Chart
         type="line"
         :data="chartData"

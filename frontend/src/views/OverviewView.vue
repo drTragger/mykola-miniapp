@@ -29,6 +29,14 @@ const props = defineProps({
   ramUsageHistory: {
     type: Array,
     default: () => []
+  },
+  rxSpeedHistory: {
+    type: Array,
+    default: () => []
+  },
+  txSpeedHistory: {
+    type: Array,
+    default: () => []
   }
 })
 
@@ -59,6 +67,10 @@ const services = computed(() => [
   { label: 'Prowlarr', ok: !!props.metrics.services?.prowlarr },
   { label: 'VPN', ok: !!props.vpnSummary?.vpnOk }
 ])
+
+function formatSpeedChartValue(value) {
+  return formatBytes(Number(value || 0)) + '/s'
+}
 </script>
 
 <template>
@@ -139,7 +151,10 @@ const services = computed(() => [
               subtitle="Останні виміри"
               :points="cpuUsageHistory"
               color="#7C83FF"
-              :formatter="(value) => `${value.toFixed(1)}%`"
+              :min="0"
+              :max="100"
+              :step-size="25"
+              :formatter="(value) => `${value.toFixed(0)}%`"
             />
           </div>
 
@@ -149,7 +164,10 @@ const services = computed(() => [
               subtitle="Останні виміри"
               :points="cpuTempHistory"
               color="#FF8A65"
-              :formatter="(value) => `${value.toFixed(1)}°C`"
+              :min="30"
+              :max="90"
+              :step-size="15"
+              :formatter="(value) => `${value.toFixed(0)}°C`"
             />
           </div>
 
@@ -159,7 +177,30 @@ const services = computed(() => [
               subtitle="Останні виміри"
               :points="ramUsageHistory"
               color="#31D0AA"
-              :formatter="(value) => `${value.toFixed(1)}%`"
+              :min="0"
+              :max="100"
+              :step-size="25"
+              :formatter="(value) => `${value.toFixed(0)}%`"
+            />
+          </div>
+
+          <div class="w-[300px] sm:w-[360px] shrink-0">
+            <MiniTrendChart
+              title="RX"
+              subtitle="Швидкість отримання"
+              :points="rxSpeedHistory"
+              color="#60A5FA"
+              :formatter="formatSpeedChartValue"
+            />
+          </div>
+
+          <div class="w-[300px] sm:w-[360px] shrink-0">
+            <MiniTrendChart
+              title="TX"
+              subtitle="Швидкість відправлення"
+              :points="txSpeedHistory"
+              color="#A78BFA"
+              :formatter="formatSpeedChartValue"
             />
           </div>
         </div>

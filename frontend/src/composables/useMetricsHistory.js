@@ -6,6 +6,8 @@ export function useMetricsHistory() {
   const cpuUsageHistory = ref([])
   const cpuTempHistory = ref([])
   const ramUsageHistory = ref([])
+  const rxSpeedHistory = ref([])
+  const txSpeedHistory = ref([])
 
   function pushPoint(collectionRef, value) {
     const now = new Date()
@@ -26,17 +28,21 @@ export function useMetricsHistory() {
   }
 
   function appendMetrics(metrics) {
-    if (!metrics?.overview) return
+    if (!metrics) return
 
-    pushPoint(cpuUsageHistory, metrics.overview.cpuUsagePercent)
-    pushPoint(cpuTempHistory, metrics.overview.cpuTemperatureCelsius)
-    pushPoint(ramUsageHistory, metrics.overview.ramUsagePercent)
+    pushPoint(cpuUsageHistory, metrics.overview?.cpuUsagePercent)
+    pushPoint(cpuTempHistory, metrics.overview?.cpuTemperatureCelsius)
+    pushPoint(ramUsageHistory, metrics.overview?.ramUsagePercent)
+    pushPoint(rxSpeedHistory, metrics.network?.rxSpeedBps)
+    pushPoint(txSpeedHistory, metrics.network?.txSpeedBps)
   }
 
   return {
     cpuUsageHistory,
     cpuTempHistory,
     ramUsageHistory,
+    rxSpeedHistory,
+    txSpeedHistory,
     appendMetrics
   }
 }

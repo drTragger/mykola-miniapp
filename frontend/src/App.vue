@@ -14,6 +14,7 @@ import { fetchSystemDetails } from './api/system'
 import { fetchVpnSummary } from './api/vpnSummary'
 import { formatCollectedAt, formatUptime } from './utils/formatters'
 import { useMetricsHistory } from './composables/useMetricsHistory'
+import { useUpsHistory } from './composables/useUpsHistory'
 import mykolaImage from './assets/mykola-1.png'
 
 const tg = window.Telegram?.WebApp
@@ -55,8 +56,16 @@ const {
   cpuUsageHistory,
   cpuTempHistory,
   ramUsageHistory,
+  rxSpeedHistory,
+  txSpeedHistory,
   appendMetrics
 } = useMetricsHistory()
+
+const {
+  batteryPercentHistory,
+  cellDeltaHistory,
+  appendUps
+} = useUpsHistory()
 
 const user = tg?.initDataUnsafe?.user
 
@@ -110,6 +119,7 @@ async function loadUps() {
 
   try {
     ups.value = await fetchUps()
+    appendUps(ups.value?.data)
   } catch (error) {
     console.error(error)
     upsError.value = error.message || 'Не вдалося завантажити UPS'
@@ -238,6 +248,8 @@ onBeforeUnmount(() => {
       :cpu-usage-history="cpuUsageHistory"
       :cpu-temp-history="cpuTempHistory"
       :ram-usage-history="ramUsageHistory"
+      :rx-speed-history="rxSpeedHistory"
+      :tx-speed-history="txSpeedHistory"
     />
 
     <QBittorrentView
@@ -249,6 +261,8 @@ onBeforeUnmount(() => {
       v-else-if="activeTab === 'ups'"
       :ups="ups"
       :loading="upsLoading"
+      :battery-percent-history="batteryPercentHistory"
+      :cell-delta-history="cellDeltaHistory"
       :error="upsError"
     />
 
