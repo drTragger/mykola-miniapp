@@ -205,6 +205,80 @@ const cellVoltageStep = computed(() => {
   if (range <= 160) return 20
   return 50
 })
+
+const batteryHistoryValues = computed(() => {
+  return props.batteryPercentHistory
+    .map((point) => point.value)
+    .filter((value) => typeof value === 'number')
+})
+
+const batteryChartMin = computed(() => {
+  if (!batteryHistoryValues.value.length) return 0
+
+  const min = Math.min(...batteryHistoryValues.value)
+  const max = Math.max(...batteryHistoryValues.value)
+  const range = max - min
+
+  const padding = Math.max(3, Math.ceil(range * 0.25))
+  return Math.max(0, min - padding)
+})
+
+const batteryChartMax = computed(() => {
+  if (!batteryHistoryValues.value.length) return 100
+
+  const min = Math.min(...batteryHistoryValues.value)
+  const max = Math.max(...batteryHistoryValues.value)
+  const range = max - min
+
+  const padding = Math.max(3, Math.ceil(range * 0.25))
+  return Math.min(100, max + padding)
+})
+
+const batteryChartStep = computed(() => {
+  const range = batteryChartMax.value - batteryChartMin.value
+
+  if (range <= 10) return 2
+  if (range <= 20) return 5
+  if (range <= 40) return 10
+  return 20
+})
+
+const cellDeltaValues = computed(() => {
+  return props.cellDeltaHistory
+    .map((point) => point.value)
+    .filter((value) => typeof value === 'number')
+})
+
+const cellDeltaChartMin = computed(() => {
+  if (!cellDeltaValues.value.length) return 0
+
+  const min = Math.min(...cellDeltaValues.value)
+  const max = Math.max(...cellDeltaValues.value)
+  const range = max - min
+
+  const padding = Math.max(10, Math.ceil(range * 0.25))
+  return Math.max(0, min - padding)
+})
+
+const cellDeltaChartMax = computed(() => {
+  if (!cellDeltaValues.value.length) return 300
+
+  const min = Math.min(...cellDeltaValues.value)
+  const max = Math.max(...cellDeltaValues.value)
+  const range = max - min
+
+  const padding = Math.max(10, Math.ceil(range * 0.25))
+  return max + padding
+})
+
+const cellDeltaChartStep = computed(() => {
+  const range = cellDeltaChartMax.value - cellDeltaChartMin.value
+
+  if (range <= 40) return 5
+  if (range <= 80) return 10
+  if (range <= 160) return 20
+  return 50
+})
 </script>
 
 <template>
@@ -436,9 +510,9 @@ const cellVoltageStep = computed(() => {
                 subtitle="Останні виміри"
                 :points="batteryPercentHistory"
                 color="#34D399"
-                :min="0"
-                :max="100"
-                :step-size="25"
+                :min="batteryChartMin"
+                :max="batteryChartMax"
+                :step-size="batteryChartStep"
                 :show-time-axis="true"
                 :formatter="(value) => `${value.toFixed(0)}%`"
               />
@@ -450,9 +524,9 @@ const cellVoltageStep = computed(() => {
                 subtitle="Різниця між банками"
                 :points="cellDeltaHistory"
                 color="#F59E0B"
-                :min="0"
-                :max="300"
-                :step-size="50"
+                :min="cellDeltaChartMin"
+                :max="cellDeltaChartMax"
+                :step-size="cellDeltaChartStep"
                 :show-time-axis="true"
                 :formatter="(value) => `${value.toFixed(0)} mV`"
               />
