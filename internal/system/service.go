@@ -137,8 +137,11 @@ func fillVPN(resp *Response) {
 	qbitWebUI := getQBittorrentWebUIAddress()
 
 	ruleOK := hasVPNRuleForQBittorrent()
-	routeOK := strings.Contains(routeTable, "default dev wg0")
-	ok := serviceOK && routeOK && handshakeAgo != "ніколи" && handshakeAgo != "н/д"
+	routeOK := hasVPNRoute()
+	bindingOK := qbitBinding == "wg0"
+	handshakeOK := handshakeAgo != "ніколи" && handshakeAgo != "н/д"
+
+	ok := serviceOK && handshakeOK && ruleOK && qbitServiceStatus && bindingOK
 
 	resp.VPN = VPNMetrics{
 		OK:               ok,
@@ -158,6 +161,27 @@ func fillVPN(resp *Response) {
 			WebUI:     qbitWebUI,
 		},
 	}
+}
+
+func hasVPNRoute() bool {
+	checks := [][]string{
+		{"ip", "route", "show", "table", "vpn"},
+		{"ip", "route", "show", "table", "51820"},
+		{"ip", "route"},
+	}
+
+	for _, cmd := range checks {
+		out, err := runCommand(2, cmd[0], cmd[1:]...)
+		if err != nil {
+			continue
+		}
+
+		if strings.Contains(out, "default dev wg0") || strings.Contains(out, "10.2.0.1 dev wg0") {
+			return true
+		}
+	}
+
+	return false
 }
 
 func fillUsers(resp *Response) {
@@ -411,12 +435,36 @@ func hasVPNRuleForQBittorrent() bool {
 }
 
 func getVPNRouteTable() string {
-	out, err := runCommand(2, "ip", "route", "show", "table", "vpn")
-	if err != nil || strings.TrimSpace(out) == "" {
-		return "❌ відсутній"
+	checks := []struct {
+		name string
+		args []string
+	}{
+		{name: "vpn", args: []string{"route", "show", "table", "vpn"}},
+		{name: "51820", args: []string{"route", "show", "table", "51820"}},
 	}
 
-	return strings.TrimSpace(out)
+	for _, check := range checks {
+		out, err := runCommand(2, "ip", check.args...)
+		if err == nil && strings.TrimSpace(out) != "" {
+			return strings.TrimSpace(out)
+		}
+	}
+
+	out, err := runCommand(2, "ip", "route")
+	if err == nil && strings.TrimSpace(out) != "" {
+		lines := []string{}
+		for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+			if strings.Contains(line, "wg0") {
+				lines = append(lines, line)
+			}
+		}
+
+		if len(lines) > 0 {
+			return strings.Join(lines, "\n")
+		}
+	}
+
+	return "❌ відсутній"
 }
 
 func getQBittorrentUserInfo() (username string, uid string) {
