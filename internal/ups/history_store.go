@@ -57,7 +57,11 @@ func initHistoryDB() error {
 		sample_bucket INTEGER NOT NULL UNIQUE,
 		collected_at INTEGER NOT NULL,
 		battery_percent INTEGER NOT NULL,
-		cell_delta_mv INTEGER NOT NULL
+		cell_delta_mv INTEGER NOT NULL,
+		cell1_mv INTEGER NOT NULL DEFAULT 0,
+		cell2_mv INTEGER NOT NULL DEFAULT 0,
+		cell3_mv INTEGER NOT NULL DEFAULT 0,
+		cell4_mv INTEGER NOT NULL DEFAULT 0
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_ups_history_collected_at
@@ -67,6 +71,17 @@ func initHistoryDB() error {
 	if _, err := db.Exec(schema); err != nil {
 		_ = db.Close()
 		return fmt.Errorf("create schema: %w", err)
+	}
+
+	migrations := []string{
+		`ALTER TABLE ups_history ADD COLUMN cell1_mv INTEGER NOT NULL DEFAULT 0;`,
+		`ALTER TABLE ups_history ADD COLUMN cell2_mv INTEGER NOT NULL DEFAULT 0;`,
+		`ALTER TABLE ups_history ADD COLUMN cell3_mv INTEGER NOT NULL DEFAULT 0;`,
+		`ALTER TABLE ups_history ADD COLUMN cell4_mv INTEGER NOT NULL DEFAULT 0;`,
+	}
+
+	for _, migration := range migrations {
+		_, _ = db.Exec(migration)
 	}
 
 	historyDB = db
@@ -87,13 +102,21 @@ func storeHistorySnapshot(s Snapshot, collectedAt time.Time) error {
 			sample_bucket,
 			collected_at,
 			battery_percent,
-			cell_delta_mv
-		) VALUES (?, ?, ?, ?)
+			cell_delta_mv,
+			cell1_mv,
+			cell2_mv,
+			cell3_mv,
+			cell4_mv
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		bucket,
 		collectedUnix,
 		s.BatteryPercent,
 		s.CellDeltaMV,
+		s.Cell1MV,
+		s.Cell2MV,
+		s.Cell3MV,
+		s.Cell4MV,
 	)
 	if err != nil {
 		return fmt.Errorf("insert history point: %w", err)
@@ -141,9 +164,9 @@ func GetHistory(limit int) ([]HistoryPoint, error) {
 	}
 
 	rows, err := historyDB.Query(`
-		SELECT collected_at, battery_percent, cell_delta_mv
+		SELECT collected_at, battery_percent, cell_delta_mv, cell1_mv, cell2_mv, cell3_mv, cell4_mv
 		FROM (
-			SELECT collected_at, battery_percent, cell_delta_mv
+			SELECT collected_at, battery_percent, cell_delta_mv, cell1_mv, cell2_mv, cell3_mv, cell4_mv
 			FROM ups_history
 			ORDER BY collected_at DESC
 			LIMIT ?
@@ -161,8 +184,20 @@ func GetHistory(limit int) ([]HistoryPoint, error) {
 		var ts int64
 		var batteryPercent int
 		var cellDeltaMV int
+		var cell1MV int
+		var cell2MV int
+		var cell3MV int
+		var cell4MV int
 
-		if err := rows.Scan(&ts, &batteryPercent, &cellDeltaMV); err != nil {
+		if err := rows.Scan(
+			&ts,
+			&batteryPercent,
+			&cellDeltaMV,
+			&cell1MV,
+			&cell2MV,
+			&cell3MV,
+			&cell4MV,
+		); err != nil {
 			return nil, fmt.Errorf("scan history point: %w", err)
 		}
 
@@ -172,6 +207,10 @@ func GetHistory(limit int) ([]HistoryPoint, error) {
 			Timestamp:      ts,
 			BatteryPercent: batteryPercent,
 			CellDeltaMV:    cellDeltaMV,
+			Cell1MV:        cell1MV,
+			Cell2MV:        cell2MV,
+			Cell3MV:        cell3MV,
+			Cell4MV:        cell4MV,
 			Time:           t.Format("15:04"),
 		})
 	}
@@ -181,29 +220,4 @@ func GetHistory(limit int) ([]HistoryPoint, error) {
 	}
 
 	return points, nil
-}
-
-func StartHistoryCollector() {
-	save := func() {
-		resp, err := GetSnapshot()
-		if err != nil {
-			return
-		}
-
-		collectedAt, err := time.Parse(time.RFC3339, resp.CollectedAt)
-		if err != nil {
-			collectedAt = time.Now()
-		}
-
-		_ = storeHistorySnapshot(resp.Data, collectedAt)
-	}
-
-	save()
-
-	ticker := time.NewTicker(historySampleInterval)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		save()
-	}
 }

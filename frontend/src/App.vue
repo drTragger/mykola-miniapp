@@ -72,6 +72,10 @@ const vpnSummaryIntervalId = ref(null)
 const batteryPercentHistory = ref([])
 const cellDeltaHistory = ref([])
 const upsHistoryIntervalId = ref(null)
+const cell1History = ref([])
+const cell2History = ref([])
+const cell3History = ref([])
+const cell4History = ref([])
 
 const {
   cpuUsageHistory,
@@ -166,6 +170,26 @@ async function loadUpsHistory() {
     cellDeltaHistory.value = points.map((point) => ({
       time: point.time,
       value: point.cellDeltaMv
+    }))
+
+    cell1History.value = points.map((point) => ({
+      time: point.time,
+      value: point.cell1Mv
+    }))
+
+    cell2History.value = points.map((point) => ({
+      time: point.time,
+      value: point.cell2Mv
+    }))
+
+    cell3History.value = points.map((point) => ({
+      time: point.time,
+      value: point.cell3Mv
+    }))
+
+    cell4History.value = points.map((point) => ({
+      time: point.time,
+      value: point.cell4Mv
     }))
   } catch (error) {
     console.error(error)
@@ -353,6 +377,10 @@ onBeforeUnmount(() => {
       :loading="upsLoading"
       :battery-percent-history="batteryPercentHistory"
       :cell-delta-history="cellDeltaHistory"
+      :cell1-history="cell1History"
+      :cell2-history="cell2History"
+      :cell3-history="cell3History"
+      :cell4-history="cell4History"
       :error="upsError"
     />
 

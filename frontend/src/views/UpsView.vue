@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import ProgressBar from 'primevue/progressbar'
 import MiniTrendChart from '../components/MiniTrendChart.vue'
+import MultiLineTrendChart from '../components/MultiLineTrendChart.vue'
 import batteryIcon from '../assets/battery.png'
 
 const props = defineProps({
@@ -22,6 +23,22 @@ const props = defineProps({
     default: () => []
   },
   cellDeltaHistory: {
+    type: Array,
+    default: () => []
+  },
+    cell1History: {
+    type: Array,
+    default: () => []
+  },
+  cell2History: {
+    type: Array,
+    default: () => []
+  },
+  cell3History: {
+    type: Array,
+    default: () => []
+  },
+  cell4History: {
     type: Array,
     default: () => []
   }
@@ -126,6 +143,33 @@ function normalizeCellMv(mv) {
   const value = ((mv - min) / (max - min)) * 100
   return Math.max(0, Math.min(100, Math.round(value)))
 }
+
+const cellVoltageLabels = computed(() => {
+  return props.cell1History.map((point) => point.time)
+})
+
+const cellVoltageDatasets = computed(() => [
+  {
+    label: 'Банка 1',
+    color: '#60A5FA',
+    data: props.cell1History.map((point) => point.value)
+  },
+  {
+    label: 'Банка 2',
+    color: '#34D399',
+    data: props.cell2History.map((point) => point.value)
+  },
+  {
+    label: 'Банка 3',
+    color: '#F59E0B',
+    data: props.cell3History.map((point) => point.value)
+  },
+  {
+    label: 'Банка 4',
+    color: '#F472B6',
+    data: props.cell4History.map((point) => point.value)
+  }
+])
 </script>
 
 <template>
@@ -325,6 +369,23 @@ function normalizeCellMv(mv) {
             />
           </div>
         </div>
+      </div>
+
+      <div class="space-y-2">
+        <div class="px-1 text-[10px] sm:text-xs uppercase tracking-wide text-white/60">
+          Історія напруги банок
+        </div>
+
+        <MultiLineTrendChart
+          title="Напруга по банках"
+          subtitle="Усі 4 банки на одному графіку"
+          :labels="cellVoltageLabels"
+          :datasets="cellVoltageDatasets"
+          :min="3000"
+          :max="4300"
+          :step-size="100"
+          :formatter="(value) => `${value.toFixed(0)} mV`"
+        />
       </div>
 
       <div class="space-y-2">

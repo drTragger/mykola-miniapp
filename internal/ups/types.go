@@ -44,6 +44,10 @@ type HistoryPoint struct {
 	Timestamp      int64  `json:"timestamp"`
 	BatteryPercent int    `json:"batteryPercent"`
 	CellDeltaMV    int    `json:"cellDeltaMv"`
+	Cell1MV        int    `json:"cell1Mv"`
+	Cell2MV        int    `json:"cell2Mv"`
+	Cell3MV        int    `json:"cell3Mv"`
+	Cell4MV        int    `json:"cell4Mv"`
 	Time           string `json:"time"`
 }
 
