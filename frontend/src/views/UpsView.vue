@@ -170,6 +170,41 @@ const cellVoltageDatasets = computed(() => [
     data: props.cell4History.map((point) => point.value)
   }
 ])
+
+const allCellVoltageValues = computed(() => {
+  return [
+    ...props.cell1History.map((point) => point.value),
+    ...props.cell2History.map((point) => point.value),
+    ...props.cell3History.map((point) => point.value),
+    ...props.cell4History.map((point) => point.value)
+  ].filter((value) => typeof value === 'number' && value > 0)
+})
+
+const cellVoltageMin = computed(() => {
+  if (!allCellVoltageValues.value.length) {
+    return 3000
+  }
+
+  const min = Math.min(...allCellVoltageValues.value)
+  return Math.floor((min - 20) / 10) * 10
+})
+
+const cellVoltageMax = computed(() => {
+  if (!allCellVoltageValues.value.length) {
+    return 4300
+  }
+
+  const max = Math.max(...allCellVoltageValues.value)
+  return Math.ceil((max + 20) / 10) * 10
+})
+
+const cellVoltageStep = computed(() => {
+  const range = cellVoltageMax.value - cellVoltageMin.value
+
+  if (range <= 80) return 10
+  if (range <= 160) return 20
+  return 50
+})
 </script>
 
 <template>
@@ -381,9 +416,9 @@ const cellVoltageDatasets = computed(() => [
           subtitle="Усі 4 банки на одному графіку"
           :labels="cellVoltageLabels"
           :datasets="cellVoltageDatasets"
-          :min="3000"
-          :max="4300"
-          :step-size="100"
+          :min="cellVoltageMin"
+          :max="cellVoltageMax"
+          :step-size="cellVoltageStep"
           :formatter="(value) => `${value.toFixed(0)} mV`"
         />
       </div>
