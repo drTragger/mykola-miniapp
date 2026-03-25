@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -71,6 +72,7 @@ func fillOverview(resp *Response) {
 	resp.Overview = OverviewMetrics{
 		CPUUsagePercent:       cpuUsagePercent,
 		CPUTemperatureCelsius: readCPUTemperature(),
+		SSDTemperatureCelsius: readSSDTemperature(),
 		RAMUsedBytes:          vm.Used,
 		RAMTotalBytes:         vm.Total,
 		RAMUsagePercent:       vm.UsedPercent,
@@ -272,4 +274,68 @@ func readCPUTemperature() float64 {
 	}
 
 	return 0
+}
+
+func readSSDTemperature() float64 {
+	device := detectRootDiskDevice()
+	if device == "" {
+		return 0
+	}
+
+	out, err := runCommand(3, "smartctl", "-a", "-d", "sat", device)
+	if err != nil {
+		out, err = runCommand(3, "smartctl", "-a", device)
+		if err != nil {
+			return 0
+		}
+	}
+
+	re := regexp.MustCompile(`(?i)(Temperature_Celsius|Airflow_Temperature_Cel).*?(\d+)$`)
+
+	for _, line := range strings.Split(out, "\n") {
+		matches := re.FindStringSubmatch(strings.TrimSpace(line))
+		if len(matches) == 3 {
+			value, err := strconv.ParseFloat(matches[2], 64)
+			if err == nil {
+				return value
+			}
+		}
+	}
+
+	return 0
+}
+
+func detectRootDiskDevice() string {
+	source, err := runCommand(2, "findmnt", "-n", "-o", "SOURCE", "/")
+	if err != nil {
+		return ""
+	}
+
+	source = strings.TrimSpace(source)
+	if source == "" || !strings.HasPrefix(source, "/dev/") {
+		return ""
+	}
+
+	parent, err := runCommand(2, "lsblk", "-no", "PKNAME", source)
+	if err == nil && strings.TrimSpace(parent) != "" {
+		return "/dev/" + strings.TrimSpace(parent)
+	}
+
+	return source
+}
+
+func runCommand(timeoutSec int, name string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, name, args...)
+	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return "", fmt.Errorf("command timeout")
+	}
+	if err != nil {
+		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+
+	return strings.TrimSpace(string(out)), nil
 }

@@ -40,8 +40,20 @@ const props = defineProps({
   }
 })
 
+const cpuTempValue = computed(() => {
+  return formatTemperature(props.metrics.overview?.cpuTemperatureCelsius)
+})
+
+const ssdTempValue = computed(() => {
+  return formatTemperature(props.metrics.overview?.ssdTemperatureCelsius)
+})
+
 const ramValue = computed(() => {
   return `${formatBytes(props.metrics.overview?.ramUsedBytes)} / ${formatBytes(props.metrics.overview?.ramTotalBytes)}`
+})
+
+const diskUsageValue = computed(() => {
+  return `${formatBytes(props.metrics.overview?.diskUsedBytes)} / ${formatBytes(props.metrics.overview?.diskTotalBytes)}`
 })
 
 const pingValue = computed(() => {
@@ -103,12 +115,14 @@ function formatSpeedChartValue(value) {
     <div class="grid grid-cols-2 xl:grid-cols-4 gap-3">
       <MetricCard
         label="Температура"
-        :value="formatTemperature(metrics.overview.cpuTemperatureCelsius)"
+        :value="cpuTempValue"
+        :subvalue="`SSD: ${ssdTempValue}`"
       />
 
       <MetricCard
         label="RAM"
         :value="ramValue"
+        :subvalue="`Disk: ${diskUsageValue}`"
       />
 
       <MetricCard
