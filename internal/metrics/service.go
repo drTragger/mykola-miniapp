@@ -282,9 +282,9 @@ func readSSDTemperature() float64 {
 		return 0
 	}
 
-	out, err := runCommand(3, "smartctl", "-a", "-d", "sat", device)
+	out, err := runSudoCommand(3, "smartctl", "-a", "-d", "sat", device)
 	if err != nil {
-		out, err = runCommand(3, "smartctl", "-a", device)
+		out, err = runSudoCommand(3, "smartctl", "-a", device)
 		if err != nil {
 			return 0
 		}
@@ -338,4 +338,9 @@ func runCommand(timeoutSec int, name string, args ...string) (string, error) {
 	}
 
 	return strings.TrimSpace(string(out)), nil
+}
+
+func runSudoCommand(timeoutSec int, cmd string, args ...string) (string, error) {
+	allArgs := append([]string{"-n", cmd}, args...)
+	return runCommand(timeoutSec, "sudo", allArgs...)
 }

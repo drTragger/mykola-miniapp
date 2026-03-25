@@ -120,9 +120,9 @@ function formatSpeedChartValue(value) {
       />
 
       <MetricCard
-        label="RAM"
+        label="RAM / DISK"
         :value="ramValue"
-        :subvalue="`Disk: ${diskUsageValue}`"
+        :subvalue="diskUsageValue"
       />
 
       <MetricCard
