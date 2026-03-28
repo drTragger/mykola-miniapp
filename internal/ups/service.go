@@ -174,14 +174,26 @@ func readRawSnapshot() (*rawSnapshot, error) {
 		return nil, fmt.Errorf("read cell4: %w", err)
 	}
 
-	s.CommState = readReg8Optional(regCommState, 0)
-	s.ChargeState = readReg8Optional(regChargeState, 0)
+	s.CommState = readReg8Optional(regCommState, -1)
+	s.ChargeState = readReg8Optional(regChargeState, -1)
 	s.FirmwareVersion = readReg8Optional(regFirmwareVersion, -1)
 	s.FullCapacityMAh = readU16LEOptional(regFullCapLo, regFullCapHi, 0)
 
 	s.ReadAt = time.Now()
 
 	return s, nil
+}
+
+func (s *rawSnapshot) HasCommState() bool {
+	return s.CommState >= 0
+}
+
+func (s *rawSnapshot) HasChargeState() bool {
+	return s.ChargeState >= 0
+}
+
+func (s *rawSnapshot) HasFirmwareVersion() bool {
+	return s.FirmwareVersion >= 0
 }
 
 func readReg8Optional(reg string, fallback int) int {
@@ -245,6 +257,10 @@ func (s *rawSnapshot) PowerSourceText() string {
 }
 
 func (s *rawSnapshot) ChargePhase() string {
+	if !s.HasChargeState() {
+		return "н/д"
+	}
+
 	phase := (s.ChargeState >> 4) & 0x07
 
 	switch phase {
@@ -268,6 +284,10 @@ func (s *rawSnapshot) ChargePhase() string {
 }
 
 func (s *rawSnapshot) IsFastCharging() bool {
+	if !s.HasChargeState() {
+		return false
+	}
+
 	return s.ChargeState&0x80 != 0
 }
 
@@ -281,7 +301,14 @@ func (s *rawSnapshot) ChargeDetailsText() string {
 	}
 
 	if !s.Charging() {
+		if !s.HasChargeState() {
+			return "заряд не виконується (стан контролера н/д)"
+		}
 		return "заряд не виконується"
+	}
+
+	if !s.HasChargeState() {
+		return "заряд виконується (фаза н/д)"
 	}
 
 	phase := s.ChargePhase()
@@ -390,14 +417,26 @@ func (s *rawSnapshot) EtaText() string {
 }
 
 func (s *rawSnapshot) BQ4050OK() bool {
+	if !s.HasCommState() {
+		return false
+	}
+
 	return s.CommState&0x01 == 0
 }
 
 func (s *rawSnapshot) IP2368OK() bool {
+	if !s.HasCommState() {
+		return false
+	}
+
 	return s.CommState&0x02 == 0
 }
 
 func (s *rawSnapshot) CommText() string {
+	if !s.HasCommState() {
+		return "BQ4050: н/д, IP2368: н/д"
+	}
+
 	bq := "активний"
 	if !s.BQ4050OK() {
 		bq = "не активний"
@@ -416,7 +455,7 @@ func (s *rawSnapshot) CommText() string {
 }
 
 func (s *rawSnapshot) FirmwareText() string {
-	if s.FirmwareVersion < 0 {
+	if !s.HasFirmwareVersion() {
 		return "н/д"
 	}
 	return fmt.Sprintf("0x%X", s.FirmwareVersion)
@@ -460,15 +499,6 @@ func readReg8Once(reg string) (int, error) {
 	}
 
 	return int(n), nil
-}
-
-func recoverI2CBus() {
-	_, _ = runCommand(
-		i2cRecoverTimeout,
-		"i2cdetect",
-		"-y",
-		strconv.Itoa(upsI2CBus),
-	)
 }
 
 func readU16LE(lo, hi string) (int, error) {
