@@ -55,8 +55,12 @@ const batteryValue = computed(() => {
 
 const batteryCapacityText = computed(() => {
   if (!data.value) return ''
-  if (!data.value.fullCapacityMAh) return `${data.value.remainingMAh} mAh`
-  return `${data.value.remainingMAh} / ${data.value.fullCapacityMAh} mAh`
+
+  const remaining = data.value.remainingMAh ?? 0
+  const full = data.value.fullCapacityMAh ?? 0
+
+  if (full <= 0) return `${remaining} mAh`
+  return `${remaining} / ${full} mAh`
 })
 
 const vbusValue = computed(() => {
@@ -365,10 +369,13 @@ const cellDeltaChartStep = computed(() => {
         v-if="ups?.stale"
         class="bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 rounded-2xl px-4 py-3 text-sm"
       >
-        Дані UPS застаріли.
-        <span v-if="ups?.lastSuccessAt" class="text-white/70">
-          Останнє успішне оновлення: {{ new Date(ups.lastSuccessAt).toLocaleTimeString('uk-UA') }}
-        </span>
+        <div>Дані UPS застаріли.</div>
+        <div v-if="ups?.lastSuccessAt" class="text-white/70 mt-1">
+          Останнє успішне оновлення: {{ new Date(ups.lastSuccessAt).toLocaleString('uk-UA') }}
+        </div>
+        <div v-if="ups?.error" class="text-white/70 mt-1 break-words">
+          {{ ups.error }}
+        </div>
       </div>
 
       <div class="grid grid-cols-2 gap-3">

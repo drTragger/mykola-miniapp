@@ -44,6 +44,7 @@ const lastUpdated = ref('—')
 
 const metricsIntervalId = ref(null)
 const heroBatteryIntervalId = ref(null)
+const upsIntervalId = ref(null)
 
 const metrics = ref({
   overview: {},
@@ -196,6 +197,21 @@ async function loadUpsHistory() {
   }
 }
 
+function startUpsRefresh() {
+  stopUpsRefresh()
+
+  upsIntervalId.value = setInterval(() => {
+    loadUps()
+  }, 10000)
+}
+
+function stopUpsRefresh() {
+  if (upsIntervalId.value) {
+    clearInterval(upsIntervalId.value)
+    upsIntervalId.value = null
+  }
+}
+
 function startUpsHistoryRefresh() {
   stopUpsHistoryRefresh()
 
@@ -261,8 +277,10 @@ watch(activeTab, async (tab) => {
       loadUps(),
       loadUpsHistory()
     ])
+    startUpsRefresh()
     startUpsHistoryRefresh()
   } else {
+    stopUpsRefresh()
     stopUpsHistoryRefresh()
   }
 
@@ -311,6 +329,7 @@ onBeforeUnmount(() => {
     clearInterval(vpnSummaryIntervalId.value)
   }
 
+  stopUpsRefresh()
   stopUpsHistoryRefresh()
 })
 </script>

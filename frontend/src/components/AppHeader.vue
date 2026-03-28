@@ -3,10 +3,6 @@ defineProps({
   subtitleLines: {
     type: Array,
     required: true
-  },
-  status: {
-    type: String,
-    required: true
   }
 })
 </script>
