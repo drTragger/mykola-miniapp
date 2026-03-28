@@ -289,7 +289,17 @@ const cellDeltaChartStep = computed(() => {
 </script>
 
 <template>
-  <section class="space-y-3 relative">
+  <section class="relative space-y-3">
+    <div
+      v-if="refreshing"
+      class="pointer-events-none absolute right-0 top-0 z-30"
+    >
+      <div class="refresh-badge">
+        <span class="refresh-dot" />
+        Оновлення UPS
+      </div>
+    </div>
+
     <div
       v-if="initialLoading"
       class="bg-panel rounded-2xl p-4 border border-white/10 text-white/60 text-sm animate-pulse"
@@ -305,13 +315,6 @@ const cellDeltaChartStep = computed(() => {
     </div>
 
     <template v-else-if="hasData">
-      <div
-        v-if="refreshing"
-        class="sticky top-2 z-20 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-200 backdrop-blur-sm"
-      >
-        Оновлюю дані UPS...
-      </div>
-
       <div
         v-if="ups?.stale"
         class="bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 rounded-2xl px-4 py-3 text-sm"
@@ -334,7 +337,7 @@ const cellDeltaChartStep = computed(() => {
 
       <div
         class="space-y-3 transition-opacity duration-200"
-        :class="refreshing ? 'opacity-80' : 'opacity-100'"
+        :class="refreshing ? 'opacity-[0.92]' : 'opacity-100'"
       >
         <div class="bg-panel rounded-3xl border border-white/10 shadow-custom p-4 relative overflow-hidden">
           <div v-if="refreshing" class="refresh-sheen" />
@@ -658,9 +661,45 @@ const cellDeltaChartStep = computed(() => {
   animation: ups-sheen 1.2s ease-in-out infinite;
 }
 
+.refresh-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 9999px;
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  background: rgba(8, 47, 73, 0.72);
+  backdrop-filter: blur(10px);
+  color: rgba(186, 230, 253, 0.95);
+  font-size: 12px;
+  line-height: 1;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.refresh-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #22d3ee;
+  box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.7);
+  animation: ups-pulse 1.4s infinite;
+}
+
 @keyframes ups-sheen {
   100% {
     transform: translateX(100%);
+  }
+}
+
+@keyframes ups-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(34, 211, 238, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
   }
 }
 </style>
