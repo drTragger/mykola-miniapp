@@ -1,10 +1,12 @@
 package ups
 
 type Response struct {
-	OK          bool     `json:"ok"`
-	CollectedAt string   `json:"collectedAt,omitempty"`
-	Data        Snapshot `json:"data"`
-	Error       string   `json:"error,omitempty"`
+	OK            bool     `json:"ok"`
+	CollectedAt   string   `json:"collectedAt,omitempty"`
+	Data          Snapshot `json:"data"`
+	Error         string   `json:"error,omitempty"`
+	Stale         bool     `json:"stale"`
+	LastSuccessAt string   `json:"lastSuccessAt,omitempty"`
 }
 
 type Snapshot struct {
@@ -38,6 +40,15 @@ type Snapshot struct {
 
 	CommText     string `json:"commText"`
 	FirmwareText string `json:"firmwareText"`
+}
+
+type BatteryResponse struct {
+	OK             bool   `json:"ok"`
+	CollectedAt    string `json:"collectedAt,omitempty"`
+	BatteryPercent int    `json:"batteryPercent,omitempty"`
+	Error          string `json:"error,omitempty"`
+	Stale          bool   `json:"stale"`
+	LastSuccessAt  string `json:"lastSuccessAt,omitempty"`
 }
 
 type HistoryPoint struct {

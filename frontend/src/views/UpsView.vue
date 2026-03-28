@@ -361,6 +361,16 @@ const cellDeltaChartStep = computed(() => {
         </div>
       </div>
 
+      <div
+        v-if="ups?.stale"
+        class="bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 rounded-2xl px-4 py-3 text-sm"
+      >
+        Дані UPS застаріли.
+        <span v-if="ups?.lastSuccessAt" class="text-white/70">
+          Останнє успішне оновлення: {{ new Date(ups.lastSuccessAt).toLocaleTimeString('uk-UA') }}
+        </span>
+      </div>
+
       <div class="grid grid-cols-2 gap-3">
         <div class="bg-panel rounded-2xl border border-white/10 shadow-custom p-3">
           <div class="flex items-start justify-between gap-3">

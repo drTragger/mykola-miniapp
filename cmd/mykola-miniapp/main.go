@@ -21,7 +21,7 @@ func main() {
 	}
 
 	metrics.StartBackgroundRefresh(5 * time.Second)
-	ups.StartBackgroundRefresh(5 * time.Second)
+	ups.StartBackgroundRefresh(10 * time.Second)
 	system.StartBackgroundRefresh(15 * time.Second)
 
 	go telegram.StartBot(cfg)

@@ -132,13 +132,6 @@ func readRawSnapshot() (*rawSnapshot, error) {
 	s := &rawSnapshot{}
 	var err error
 
-	if s.CommState, err = readReg8(regCommState); err != nil {
-		return nil, fmt.Errorf("read COMM state: %w", err)
-	}
-	if s.ChargeState, err = readReg8(regChargeState); err != nil {
-		return nil, fmt.Errorf("read CHARGE state: %w", err)
-	}
-
 	if s.VBUSVoltageMV, err = readU16LE(regVBUSVoltageLo, regVBUSVoltageHi); err != nil {
 		return nil, fmt.Errorf("read VBUS voltage: %w", err)
 	}
@@ -167,9 +160,6 @@ func readRawSnapshot() (*rawSnapshot, error) {
 	if s.RemainChgMin, err = readU16LE(regRemainChgLo, regRemainChgHi); err != nil {
 		return nil, fmt.Errorf("read remain charge min: %w", err)
 	}
-	if s.FullCapacityMAh, err = readU16LE(regFullCapLo, regFullCapHi); err != nil {
-		s.FullCapacityMAh = 0
-	}
 
 	if s.Cell1MV, err = readU16LE(regCell1Lo, regCell1Hi); err != nil {
 		return nil, fmt.Errorf("read cell1: %w", err)
@@ -184,13 +174,30 @@ func readRawSnapshot() (*rawSnapshot, error) {
 		return nil, fmt.Errorf("read cell4: %w", err)
 	}
 
-	if s.FirmwareVersion, err = readReg8(regFirmwareVersion); err != nil {
-		s.FirmwareVersion = -1
-	}
+	s.CommState = readReg8Optional(regCommState, 0)
+	s.ChargeState = readReg8Optional(regChargeState, 0)
+	s.FirmwareVersion = readReg8Optional(regFirmwareVersion, -1)
+	s.FullCapacityMAh = readU16LEOptional(regFullCapLo, regFullCapHi, 0)
 
 	s.ReadAt = time.Now()
 
 	return s, nil
+}
+
+func readReg8Optional(reg string, fallback int) int {
+	v, err := readReg8(reg)
+	if err != nil {
+		return fallback
+	}
+	return v
+}
+
+func readU16LEOptional(lo, hi string, fallback int) int {
+	v, err := readU16LE(lo, hi)
+	if err != nil {
+		return fallback
+	}
+	return v
 }
 
 func (s *rawSnapshot) VBUSPresent() bool {
@@ -425,10 +432,6 @@ func readReg8(reg string) (int, error) {
 		}
 
 		lastErr = err
-
-		if attempt == 1 {
-			recoverI2CBus()
-		}
 
 		if attempt < i2cReadRetries {
 			time.Sleep(i2cRetryDelay)

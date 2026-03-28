@@ -1,14 +1,5 @@
 package ups
 
-import "time"
-
-type BatteryResponse struct {
-	OK             bool   `json:"ok"`
-	CollectedAt    string `json:"collectedAt,omitempty"`
-	BatteryPercent int    `json:"batteryPercent,omitempty"`
-	Error          string `json:"error,omitempty"`
-}
-
 func GetBatterySnapshot() (BatteryResponse, error) {
 	resp, err := GetSnapshot()
 	if err != nil {
@@ -16,9 +7,12 @@ func GetBatterySnapshot() (BatteryResponse, error) {
 	}
 
 	return BatteryResponse{
-		OK:             true,
+		OK:             resp.OK,
 		CollectedAt:    resp.CollectedAt,
 		BatteryPercent: resp.Data.BatteryPercent,
+		Error:          resp.Error,
+		Stale:          resp.Stale,
+		LastSuccessAt:  resp.LastSuccessAt,
 	}, nil
 }
 
@@ -30,7 +24,7 @@ func GetBatterySnapshotFresh() (BatteryResponse, error) {
 
 	return BatteryResponse{
 		OK:             true,
-		CollectedAt:    time.Now().Format(time.RFC3339),
+		CollectedAt:    resp.CollectedAt,
 		BatteryPercent: resp.Data.BatteryPercent,
 	}, nil
 }
