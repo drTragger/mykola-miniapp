@@ -149,6 +149,10 @@ func collectDiskMetrics() []DiskMetrics {
 			continue
 		}
 
+		if p.Mountpoint != "/" && p.Mountpoint != "/data" {
+			continue
+		}
+
 		key := p.Device + "|" + p.Mountpoint
 		if _, ok := seen[key]; ok {
 			continue
@@ -212,7 +216,7 @@ func detectDiskName(device string, mountpoint string) string {
 	}
 
 	if mountpoint == "/data" {
-		return "Data SSD"
+		return "Media SSD"
 	}
 
 	label, err := runCommand(2, "lsblk", "-no", "LABEL", device)

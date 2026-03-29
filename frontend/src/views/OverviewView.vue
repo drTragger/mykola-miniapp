@@ -44,8 +44,34 @@ const cpuTempValue = computed(() => {
   return formatTemperature(props.metrics.overview?.cpuTemperatureCelsius)
 })
 
-const ssdTempValue = computed(() => {
-  return formatTemperature(props.metrics.overview?.ssdTemperatureCelsius)
+const systemDisk = computed(() => {
+  return disks.value.find((disk) => disk.mountpoint === '/') || null
+})
+
+const dataDisk = computed(() => {
+  return disks.value.find((disk) => disk.mountpoint === '/data') || null
+})
+
+const systemDiskTempValue = computed(() => {
+  return formatTemperature(systemDisk.value?.temperatureCelsius)
+})
+
+const dataDiskTempValue = computed(() => {
+  return formatTemperature(dataDisk.value?.temperatureCelsius)
+})
+
+const temperatureSubvalue = computed(() => {
+  const temps = []
+
+  if (systemDiskTempValue.value !== '—') {
+    temps.push(systemDiskTempValue.value)
+  }
+
+  if (dataDiskTempValue.value !== '—') {
+    temps.push(dataDiskTempValue.value)
+  }
+
+  return temps.length ? `SSD: ${temps.join(' · ')}` : 'SSD: —'
 })
 
 const ramValue = computed(() => {
@@ -124,7 +150,7 @@ function formatSpeedChartValue(value) {
       <MetricCard
         label="Температура"
         :value="cpuTempValue"
-        :subvalue="`SSD: ${ssdTempValue}`"
+        :subvalue="temperatureSubvalue"
       />
 
       <MetricCard
