@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -61,7 +62,6 @@ func Collect() (Response, error) {
 
 func fillOverview(resp *Response) {
 	vm, _ := mem.VirtualMemory()
-	diskUsage, _ := disk.Usage("/")
 	hostInfo, _ := host.Info()
 
 	cpuUsagePercent := 0.0
@@ -69,6 +69,22 @@ func fillOverview(resp *Response) {
 		cpuUsagePercent = cpuPercents[0]
 	}
 
+	disks := collectDiskMetrics()
+
+	var totalUsed uint64
+	var totalSize uint64
+
+	for _, diskItem := range disks {
+		totalUsed += diskItem.UsedBytes
+		totalSize += diskItem.TotalBytes
+	}
+
+	diskUsagePercent := 0.0
+	if totalSize > 0 {
+		diskUsagePercent = (float64(totalUsed) / float64(totalSize)) * 100
+	}
+
+	resp.Disks = disks
 	resp.Overview = OverviewMetrics{
 		CPUUsagePercent:       cpuUsagePercent,
 		CPUTemperatureCelsius: readCPUTemperature(),
@@ -76,9 +92,9 @@ func fillOverview(resp *Response) {
 		RAMUsedBytes:          vm.Used,
 		RAMTotalBytes:         vm.Total,
 		RAMUsagePercent:       vm.UsedPercent,
-		DiskUsedBytes:         diskUsage.Used,
-		DiskTotalBytes:        diskUsage.Total,
-		DiskUsagePercent:      diskUsage.UsedPercent,
+		DiskUsedBytes:         totalUsed,
+		DiskTotalBytes:        totalSize,
+		DiskUsagePercent:      diskUsagePercent,
 		UptimeSeconds:         hostInfo.Uptime,
 	}
 }
@@ -113,6 +129,126 @@ func fillServices(resp *Response) {
 		Prowlarr:    isTCPPortOpen("127.0.0.1:9696"),
 		Fail2ban:    isServiceActive("fail2ban"),
 	}
+}
+
+func collectDiskMetrics() []DiskMetrics {
+	partitions, err := disk.Partitions(false)
+	if err != nil {
+		return nil
+	}
+
+	items := make([]DiskMetrics, 0, len(partitions))
+	seen := make(map[string]struct{})
+
+	for _, p := range partitions {
+		if !strings.HasPrefix(p.Device, "/dev/") {
+			continue
+		}
+
+		if p.Mountpoint == "" {
+			continue
+		}
+
+		key := p.Device + "|" + p.Mountpoint
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		usage, err := disk.Usage(p.Mountpoint)
+		if err != nil {
+			continue
+		}
+
+		parentDevice := detectParentBlockDevice(p.Device)
+		if parentDevice == "" {
+			parentDevice = p.Device
+		}
+
+		name := detectDiskName(parentDevice, p.Mountpoint)
+
+		items = append(items, DiskMetrics{
+			Name:               name,
+			Device:             parentDevice,
+			Mountpoint:         p.Mountpoint,
+			Fstype:             p.Fstype,
+			UsedBytes:          usage.Used,
+			TotalBytes:         usage.Total,
+			FreeBytes:          usage.Free,
+			UsagePercent:       usage.UsedPercent,
+			TemperatureCelsius: readDiskTemperature(parentDevice),
+		})
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Mountpoint == "/" {
+			return true
+		}
+		if items[j].Mountpoint == "/" {
+			return false
+		}
+		return items[i].Mountpoint < items[j].Mountpoint
+	})
+
+	return items
+}
+
+func detectParentBlockDevice(source string) string {
+	if source == "" || !strings.HasPrefix(source, "/dev/") {
+		return ""
+	}
+
+	parent, err := runCommand(2, "lsblk", "-no", "PKNAME", source)
+	if err == nil && strings.TrimSpace(parent) != "" {
+		return "/dev/" + strings.TrimSpace(parent)
+	}
+
+	return source
+}
+
+func detectDiskName(device string, mountpoint string) string {
+	if mountpoint == "/" {
+		return "System SSD"
+	}
+
+	if mountpoint == "/data" {
+		return "Data SSD"
+	}
+
+	label, err := runCommand(2, "lsblk", "-no", "LABEL", device)
+	if err == nil && strings.TrimSpace(label) != "" {
+		return strings.TrimSpace(label)
+	}
+
+	return strings.TrimPrefix(device, "/dev/")
+}
+
+func readDiskTemperature(device string) float64 {
+	if device == "" {
+		return 0
+	}
+
+	out, err := runSudoCommand(3, "smartctl", "-a", "-d", "sat", device)
+	if err != nil {
+		out, err = runSudoCommand(3, "smartctl", "-a", device)
+		if err != nil {
+			return 0
+		}
+	}
+
+	re := regexp.MustCompile(`(?i)(Temperature_Celsius|Airflow_Temperature_Cel).*?(\d+)$`)
+
+	for _, line := range strings.Split(out, "\n") {
+		matches := re.FindStringSubmatch(strings.TrimSpace(line))
+		if len(matches) == 3 {
+			value, err := strconv.ParseFloat(matches[2], 64)
+			if err == nil {
+				return value
+			}
+		}
+	}
+
+	return 0
 }
 
 func detectLocalIPv4() string {
@@ -277,28 +413,20 @@ func readCPUTemperature() float64 {
 }
 
 func readSSDTemperature() float64 {
-	device := detectRootDiskDevice()
-	if device == "" {
+	disks := collectDiskMetrics()
+	if len(disks) == 0 {
 		return 0
 	}
 
-	out, err := runSudoCommand(3, "smartctl", "-a", "-d", "sat", device)
-	if err != nil {
-		out, err = runSudoCommand(3, "smartctl", "-a", device)
-		if err != nil {
-			return 0
+	for _, diskItem := range disks {
+		if diskItem.Mountpoint == "/" && diskItem.TemperatureCelsius > 0 {
+			return diskItem.TemperatureCelsius
 		}
 	}
 
-	re := regexp.MustCompile(`(?i)(Temperature_Celsius|Airflow_Temperature_Cel).*?(\d+)$`)
-
-	for _, line := range strings.Split(out, "\n") {
-		matches := re.FindStringSubmatch(strings.TrimSpace(line))
-		if len(matches) == 3 {
-			value, err := strconv.ParseFloat(matches[2], 64)
-			if err == nil {
-				return value
-			}
+	for _, diskItem := range disks {
+		if diskItem.TemperatureCelsius > 0 {
+			return diskItem.TemperatureCelsius
 		}
 	}
 

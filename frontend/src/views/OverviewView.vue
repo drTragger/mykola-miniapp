@@ -71,6 +71,14 @@ const rxTxValue = computed(() => {
   return `↓ ${rx}\n↑ ${tx}`
 })
 
+const disks = computed(() => {
+  return Array.isArray(props.metrics.disks) ? props.metrics.disks : []
+})
+
+function formatDiskTemperature(value) {
+  return typeof value === 'number' && value > 0 ? `${value.toFixed(0)}°C` : '—'
+}
+
 const services = computed(() => [
   { label: 'Jellyfin', ok: !!props.metrics.services?.jellyfin },
   { label: 'qBittorrent', ok: !!props.metrics.services?.qBittorrent },
@@ -135,6 +143,52 @@ function formatSpeedChartValue(value) {
         label="RX / TX"
         :value="rxTxValue"
       />
+    </div>
+
+        <div class="bg-panel rounded-2xl p-3 shadow-custom border border-white/10">
+      <div class="text-[10px] sm:text-xs uppercase tracking-wide text-white/60 mb-3">
+        Диски
+      </div>
+
+      <div class="space-y-3">
+        <div
+          v-for="disk in disks"
+          :key="`${disk.device}-${disk.mountpoint}`"
+          class="rounded-2xl border border-white/10 bg-white/5 p-3"
+        >
+          <div class="flex items-start justify-between gap-3 mb-2">
+            <div>
+              <div class="text-sm font-semibold text-white">
+                {{ disk.name }}
+              </div>
+              <div class="text-xs text-white/50">
+                {{ disk.mountpoint }} · {{ disk.device }} · {{ disk.fstype }}
+              </div>
+            </div>
+
+            <div class="text-right shrink-0">
+              <div class="text-sm font-semibold text-white">
+                {{ Number(disk.usagePercent || 0).toFixed(0) }}%
+              </div>
+              <div class="text-xs text-white/50">
+                {{ formatDiskTemperature(disk.temperatureCelsius) }}
+              </div>
+            </div>
+          </div>
+
+          <div class="w-full h-2 rounded-full bg-white/10 overflow-hidden mb-2">
+            <div
+              class="h-full rounded-full bg-primary transition-all duration-300"
+              :style="{ width: `${Math.max(0, Math.min(100, Number(disk.usagePercent || 0)))}%` }"
+            />
+          </div>
+
+          <div class="flex items-center justify-between text-xs text-white/60">
+            <span>{{ formatBytes(disk.usedBytes) }} / {{ formatBytes(disk.totalBytes) }}</span>
+            <span>Вільно: {{ formatBytes(disk.freeBytes) }}</span>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="bg-panel rounded-2xl p-3 shadow-custom border border-white/10">

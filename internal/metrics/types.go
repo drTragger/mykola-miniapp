@@ -6,6 +6,7 @@ type Response struct {
 	Overview    OverviewMetrics `json:"overview"`
 	Network     NetworkMetrics  `json:"network"`
 	Services    ServicesMetrics `json:"services"`
+	Disks       []DiskMetrics   `json:"disks"`
 	Error       string          `json:"error,omitempty"`
 }
 
@@ -20,6 +21,18 @@ type OverviewMetrics struct {
 	DiskTotalBytes        uint64  `json:"diskTotalBytes"`
 	DiskUsagePercent      float64 `json:"diskUsagePercent"`
 	UptimeSeconds         uint64  `json:"uptimeSeconds"`
+}
+
+type DiskMetrics struct {
+	Name               string  `json:"name"`
+	Device             string  `json:"device"`
+	Mountpoint         string  `json:"mountpoint"`
+	Fstype             string  `json:"fstype"`
+	UsedBytes          uint64  `json:"usedBytes"`
+	TotalBytes         uint64  `json:"totalBytes"`
+	FreeBytes          uint64  `json:"freeBytes"`
+	UsagePercent       float64 `json:"usagePercent"`
+	TemperatureCelsius float64 `json:"temperatureCelsius"`
 }
 
 type NetworkMetrics struct {
