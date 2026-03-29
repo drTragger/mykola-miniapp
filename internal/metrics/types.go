@@ -14,6 +14,7 @@ type OverviewMetrics struct {
 	CPUUsagePercent       float64 `json:"cpuUsagePercent"`
 	CPUTemperatureCelsius float64 `json:"cpuTemperatureCelsius"`
 	SSDTemperatureCelsius float64 `json:"ssdTemperatureCelsius"`
+	CPUThrottled          bool    `json:"cpuThrottled"`
 	RAMUsedBytes          uint64  `json:"ramUsedBytes"`
 	RAMTotalBytes         uint64  `json:"ramTotalBytes"`
 	RAMUsagePercent       float64 `json:"ramUsagePercent"`

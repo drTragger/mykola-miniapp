@@ -89,6 +89,7 @@ func fillOverview(resp *Response) {
 		CPUUsagePercent:       cpuUsagePercent,
 		CPUTemperatureCelsius: readCPUTemperature(),
 		SSDTemperatureCelsius: readSSDTemperature(),
+		CPUThrottled:          isCPUThrottled(),
 		RAMUsedBytes:          vm.Used,
 		RAMTotalBytes:         vm.Total,
 		RAMUsagePercent:       vm.UsedPercent,
@@ -414,6 +415,41 @@ func readCPUTemperature() float64 {
 	}
 
 	return 0
+}
+
+func isCPUThrottled() bool {
+	out, err := runCommand(2, "vcgencmd", "get_throttled")
+	if err != nil {
+		return false
+	}
+
+	out = strings.TrimSpace(out)
+	parts := strings.Split(out, "=")
+	if len(parts) != 2 {
+		return false
+	}
+
+	valueStr := strings.TrimSpace(parts[1])
+	valueStr = strings.TrimPrefix(strings.ToLower(valueStr), "0x")
+
+	value, err := strconv.ParseUint(valueStr, 16, 64)
+	if err != nil {
+		return false
+	}
+
+	const (
+		underVoltageNow  uint64 = 1 << 0
+		freqCappedNow    uint64 = 1 << 1
+		throttledNow     uint64 = 1 << 2
+		softTempLimitNow uint64 = 1 << 3
+	)
+
+	mask := underVoltageNow |
+		freqCappedNow |
+		throttledNow |
+		softTempLimitNow
+
+	return value&mask != 0
 }
 
 func readSSDTemperature() float64 {
