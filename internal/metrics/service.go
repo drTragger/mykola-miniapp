@@ -473,25 +473,6 @@ func readSSDTemperature() float64 {
 	return 0
 }
 
-func detectRootDiskDevice() string {
-	source, err := runCommand(2, "findmnt", "-n", "-o", "SOURCE", "/")
-	if err != nil {
-		return ""
-	}
-
-	source = strings.TrimSpace(source)
-	if source == "" || !strings.HasPrefix(source, "/dev/") {
-		return ""
-	}
-
-	parent, err := runCommand(2, "lsblk", "-no", "PKNAME", source)
-	if err == nil && strings.TrimSpace(parent) != "" {
-		return "/dev/" + strings.TrimSpace(parent)
-	}
-
-	return source
-}
-
 func runCommand(timeoutSec int, name string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
 	defer cancel()
