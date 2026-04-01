@@ -213,11 +213,19 @@ func readU16LEOptional(lo, hi string, fallback int) int {
 }
 
 func (s *rawSnapshot) VBUSPresent() bool {
-	return s.VBUSVoltageMV >= minVBUSPresentMV
+	return s.VBUSVoltageMV >= minVBUSPresentMV || s.HasVBUSBit()
 }
 
 func (s *rawSnapshot) Charging() bool {
-	return s.VBUSPresent() && s.BatteryCurrentMA > minChargeCurrentMA
+	if !s.VBUSPresent() {
+		return false
+	}
+
+	if s.BatteryCurrentMA > minChargeCurrentMA {
+		return true
+	}
+
+	return s.IsChargingBitSet()
 }
 
 func (s *rawSnapshot) Discharging() bool {
@@ -226,6 +234,30 @@ func (s *rawSnapshot) Discharging() bool {
 
 func (s *rawSnapshot) IdleCharging() bool {
 	return s.VBUSPresent() && s.BatteryCurrentMA > 0 && s.BatteryCurrentMA <= minChargeCurrentMA
+}
+
+func (s *rawSnapshot) IsChargingBitSet() bool {
+	if !s.HasChargeState() {
+		return false
+	}
+
+	return ((s.ChargeState >> 7) & 0x01) == 1
+}
+
+func (s *rawSnapshot) IsFastCharging() bool {
+	if !s.HasChargeState() {
+		return false
+	}
+
+	return ((s.ChargeState >> 6) & 0x01) == 1
+}
+
+func (s *rawSnapshot) HasVBUSBit() bool {
+	if !s.HasChargeState() {
+		return false
+	}
+
+	return ((s.ChargeState >> 5) & 0x01) == 1
 }
 
 func (s *rawSnapshot) StateText() string {
@@ -261,7 +293,7 @@ func (s *rawSnapshot) ChargePhase() string {
 		return "н/д"
 	}
 
-	phase := (s.ChargeState >> 4) & 0x07
+	phase := s.ChargeState & 0x07
 
 	switch phase {
 	case 0:
@@ -273,22 +305,14 @@ func (s *rawSnapshot) ChargePhase() string {
 	case 3:
 		return "постійна напруга"
 	case 4:
-		return "заряд завершено"
-	case 5:
 		return "очікує зарядки"
+	case 5:
+		return "повністю заряджено"
 	case 6:
 		return "таймаут зарядки"
 	default:
 		return "невідомо"
 	}
-}
-
-func (s *rawSnapshot) IsFastCharging() bool {
-	if !s.HasChargeState() {
-		return false
-	}
-
-	return s.ChargeState&0x80 != 0
 }
 
 func (s *rawSnapshot) ChargeDetailsText() string {
@@ -421,7 +445,7 @@ func (s *rawSnapshot) BQ4050OK() bool {
 		return false
 	}
 
-	return s.CommState&0x01 == 0
+	return ((s.CommState >> 1) & 0x01) == 1
 }
 
 func (s *rawSnapshot) IP2368OK() bool {
@@ -429,7 +453,7 @@ func (s *rawSnapshot) IP2368OK() bool {
 		return false
 	}
 
-	return s.CommState&0x02 == 0
+	return (s.CommState & 0x01) == 1
 }
 
 func (s *rawSnapshot) CommText() string {
@@ -437,18 +461,18 @@ func (s *rawSnapshot) CommText() string {
 		return "BQ4050: н/д, IP2368: н/д"
 	}
 
-	bq := "активний"
-	if !s.BQ4050OK() {
-		bq = "не активний"
+	bq := "не активний"
+	if s.BQ4050OK() {
+		bq = "активний"
 	}
 
-	ip := "активний"
-	if !s.IP2368OK() {
-		if !s.VBUSPresent() {
-			ip = "вимкнений"
-		} else {
-			ip = "не активний"
-		}
+	ip := "не активний"
+	if s.IP2368OK() {
+		ip = "активний"
+	}
+
+	if !s.VBUSPresent() && !s.IP2368OK() {
+		ip = "вимкнений"
 	}
 
 	return fmt.Sprintf("BQ4050: %s, IP2368: %s", bq, ip)
