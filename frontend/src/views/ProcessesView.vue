@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { fetchProcesses, sendProcessAction } from '../api/processes'
 import { formatBytes, formatUptime } from '../utils/formatters'
 
@@ -10,7 +10,8 @@ const props = defineProps({
   }
 })
 
-const loading = ref(false)
+const initialLoading = ref(false)
+const refreshing = ref(false)
 const error = ref('')
 const items = ref([])
 const total = ref(0)
@@ -51,7 +52,8 @@ const offset = computed(() => {
 })
 
 const summaryText = computed(() => {
-  if (loading.value) return 'Завантаження...'
+  if (initialLoading.value) return 'Завантаження...'
+  if (refreshing.value) return `Оновлення... ${total.value} процесів`
   return `${total.value} процесів`
 })
 
@@ -109,8 +111,18 @@ function formatProcessUptime(value) {
   return formatUptime(value)
 }
 
-async function loadProcesses() {
-  loading.value = true
+async function loadProcesses(options = {}) {
+  const preserveScroll = options.preserveScroll ?? false
+  const silent = options.silent ?? false
+  const scrollY = preserveScroll ? window.scrollY : 0
+  const hasData = items.value.length > 0
+
+  if (silent && hasData) {
+    refreshing.value = true
+  } else {
+    initialLoading.value = true
+  }
+
   error.value = ''
 
   try {
@@ -124,11 +136,20 @@ async function loadProcesses() {
 
     items.value = Array.isArray(data.items) ? data.items : []
     total.value = Number(data.total || 0)
+
+    if (preserveScroll) {
+      await nextTick()
+      window.scrollTo({
+        top: scrollY,
+        behavior: 'auto'
+      })
+    }
   } catch (err) {
     console.error(err)
     error.value = err.message || 'Не вдалося завантажити процеси'
   } finally {
-    loading.value = false
+    initialLoading.value = false
+    refreshing.value = false
   }
 }
 
@@ -140,7 +161,7 @@ async function runAction(pid, action) {
 
   try {
     await sendProcessAction(pid, action)
-    await loadProcesses()
+    await loadProcesses({ silent: true, preserveScroll: true })
   } catch (err) {
     console.error(err)
     window.alert(err.message || 'Не вдалося виконати дію')
@@ -175,7 +196,10 @@ function startAutoRefresh() {
   stopAutoRefresh()
 
   autoRefreshId.value = setInterval(() => {
-    loadProcesses()
+    loadProcesses({
+      silent: true,
+      preserveScroll: true
+    })
   }, 10000)
 }
 
@@ -255,9 +279,9 @@ onBeforeUnmount(() => {
 
         <button
           class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-sm text-white hover:bg-white/10 transition"
-          @click="loadProcesses"
+          @click="loadProcesses({ silent: true, preserveScroll: true })"
         >
-          Оновити
+          {{ refreshing ? 'Оновлюється...' : 'Оновити' }}
         </button>
       </div>
 
@@ -350,7 +374,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div
-      v-if="loading"
+      v-if="initialLoading && !items.length"
       class="bg-panel rounded-2xl border border-white/10 p-4 shadow-custom"
     >
       <div class="text-sm text-white/60">
@@ -371,6 +395,13 @@ onBeforeUnmount(() => {
       v-else
       class="space-y-3"
     >
+      <div
+        v-if="refreshing"
+        class="bg-panel rounded-2xl border border-white/10 p-3 shadow-custom text-sm text-white/60"
+      >
+        Оновлюю список процесів...
+      </div>
+
       <div
         v-for="item in items"
         :key="item.pid"
