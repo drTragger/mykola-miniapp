@@ -6,6 +6,7 @@ import BottomNav from './components/BottomNav.vue'
 import OverviewView from './views/OverviewView.vue'
 import UpsView from './views/UpsView.vue'
 import QBittorrentView from './views/QBittorrentView.vue'
+import ProcessesView from './views/ProcessesView.vue'
 import SystemDetailsView from './views/SystemDetailsView.vue'
 import { fetchMetrics } from './api/metrics'
 import { fetchUps } from './api/ups'
@@ -401,6 +402,11 @@ onBeforeUnmount(() => {
       :cell3-history="cell3History"
       :cell4-history="cell4History"
       :error="upsError"
+    />
+
+    <ProcessesView
+      v-else-if="activeTab === 'processes'"
+      :active="activeTab === 'processes'"
     />
 
     <SystemDetailsView

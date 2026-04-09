@@ -11,7 +11,8 @@ const emit = defineEmits(['update:modelValue'])
 const items = [
   { key: 'overview', label: 'Огляд', icon: 'pi-chart-line' },
   { key: 'ups', label: 'UPS', icon: 'pi-bolt' },
-  { key: 'qbittorrent', label: 'Торенти', icon: 'pi pi-download' },
+  { key: 'qbittorrent', label: 'Торенти', icon: 'pi-download' },
+  { key: 'processes', label: 'Процеси', icon: 'pi-microchip' },
   { key: 'system', label: 'Система', icon: 'pi-desktop' },
 ]
 </script>

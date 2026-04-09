@@ -33,6 +33,8 @@ func NewRouter() (http.Handler, error) {
 	apiMux.HandleFunc("/api/ups/history", upsHistoryHandler)
 	apiMux.HandleFunc("/api/system", systemHandler)
 	apiMux.HandleFunc("/api/vpn/summary", vpnSummaryHandler)
+	apiMux.HandleFunc("/api/processes", handleProcessesList)
+	apiMux.HandleFunc("/api/processes/", handleProcessAction)
 
 	qbHandler, err := newQBittorrentHandler()
 	if err != nil {
