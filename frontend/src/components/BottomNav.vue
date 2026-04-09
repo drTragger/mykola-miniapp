@@ -21,7 +21,7 @@ const items = [
   <nav
     class="fixed bottom-0 left-0 right-0 bg-panel border-t border-white/10 z-50"
   >
-    <ul class="grid grid-cols-4 gap-2 px-3 py-3 max-w-[920px] mx-auto">
+    <ul class="grid grid-cols-5 gap-2 px-3 py-3 max-w-[920px] mx-auto">
       <li v-for="item in items" :key="item.key">
         <button
           type="button"

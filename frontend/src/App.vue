@@ -375,44 +375,54 @@ onBeforeUnmount(() => {
       @refresh="refreshAllData"
     />
 
-    <OverviewView
-      v-if="activeTab === 'overview'"
-      :metrics="metrics"
-      :vpn-summary="vpnSummary"
-      :cpu-usage-history="cpuUsageHistory"
-      :cpu-temp-history="cpuTempHistory"
-      :ram-usage-history="ramUsageHistory"
-      :rx-speed-history="rxSpeedHistory"
-      :tx-speed-history="txSpeedHistory"
-    />
+    <KeepAlive>
+  <OverviewView
+    v-show="activeTab === 'overview'"
+    :metrics="metrics"
+    :vpn-summary="vpnSummary"
+    :cpu-usage-history="cpuUsageHistory"
+    :cpu-temp-history="cpuTempHistory"
+    :ram-usage-history="ramUsageHistory"
+    :rx-speed-history="rxSpeedHistory"
+    :tx-speed-history="txSpeedHistory"
+  />
+</KeepAlive>
 
-    <QBittorrentView
-      v-else-if="activeTab === 'qbittorrent'"
-      :active="activeTab === 'qbittorrent'"
-    />
+<KeepAlive>
+  <QBittorrentView
+    v-show="activeTab === 'qbittorrent'"
+    :active="activeTab === 'qbittorrent'"
+  />
+</KeepAlive>
 
-    <UpsView
-      v-else-if="activeTab === 'ups'"
-      :ups="ups"
-      :loading="upsLoading"
-      :battery-percent-history="batteryPercentHistory"
-      :cell-delta-history="cellDeltaHistory"
-      :cell1-history="cell1History"
-      :cell2-history="cell2History"
-      :cell3-history="cell3History"
-      :cell4-history="cell4History"
-      :error="upsError"
-    />
+<KeepAlive>
+  <UpsView
+    v-show="activeTab === 'ups'"
+    :ups="ups"
+    :loading="upsLoading"
+    :battery-percent-history="batteryPercentHistory"
+    :cell-delta-history="cellDeltaHistory"
+    :cell1-history="cell1History"
+    :cell2-history="cell2History"
+    :cell3-history="cell3History"
+    :cell4-history="cell4History"
+    :error="upsError"
+  />
+</KeepAlive>
 
-    <ProcessesView
-      v-else-if="activeTab === 'processes'"
-      :active="activeTab === 'processes'"
-    />
+<KeepAlive>
+  <ProcessesView
+    v-show="activeTab === 'processes'"
+    :active="activeTab === 'processes'"
+  />
+</KeepAlive>
 
-    <SystemDetailsView
-      v-else-if="activeTab === 'system'"
-      :system-data="systemData"
-    />
+<KeepAlive>
+  <SystemDetailsView
+    v-show="activeTab === 'system'"
+    :system-data="systemData"
+  />
+</KeepAlive>
 
     <BottomNav v-model="activeTab" />
   </div>
