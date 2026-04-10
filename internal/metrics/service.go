@@ -237,13 +237,19 @@ func readDiskTemperature(device string) float64 {
 	if strings.HasPrefix(device, "/dev/nvme") {
 		out, err = runSudoCommand(5, "smartctl", "-a", device)
 		if err != nil {
+			fmt.Printf("DEBUG NVME smartctl error for %s: %v\n", device, err)
 			return 0
 		}
 
+		fmt.Printf("DEBUG NVME device=%s\n", device)
+		fmt.Printf("DEBUG NVME output:\n%s\n", out)
+
 		if temp := parseNvmeTemperature(out); temp > 0 {
+			fmt.Printf("DEBUG NVME parsed temp for %s: %.2f\n", device, temp)
 			return temp
 		}
 
+		fmt.Printf("DEBUG NVME parsed temp for %s: 0\n", device)
 		return 0
 	}
 
@@ -251,14 +257,20 @@ func readDiskTemperature(device string) float64 {
 	if err != nil {
 		out, err = runSudoCommand(5, "smartctl", "-a", device)
 		if err != nil {
+			fmt.Printf("DEBUG ATA smartctl error for %s: %v\n", device, err)
 			return 0
 		}
 	}
 
+	fmt.Printf("DEBUG ATA device=%s\n", device)
+	fmt.Printf("DEBUG ATA output:\n%s\n", out)
+
 	if temp := parseAtaTemperature(out); temp > 0 {
+		fmt.Printf("DEBUG ATA parsed temp for %s: %.2f\n", device, temp)
 		return temp
 	}
 
+	fmt.Printf("DEBUG ATA parsed temp for %s: 0\n", device)
 	return 0
 }
 
@@ -269,8 +281,11 @@ func parseNvmeTemperature(out string) float64 {
 		line = strings.TrimSpace(line)
 
 		if strings.HasPrefix(line, "Temperature:") {
-			if value, ok := extractFirstNumber(line); ok {
-				return value
+			parts := strings.Fields(line)
+			for _, part := range parts {
+				if value, err := strconv.ParseFloat(part, 64); err == nil {
+					return value
+				}
 			}
 		}
 	}
@@ -279,8 +294,11 @@ func parseNvmeTemperature(out string) float64 {
 		line = strings.TrimSpace(line)
 
 		if strings.HasPrefix(line, "Temperature Sensor 1:") {
-			if value, ok := extractFirstNumber(line); ok {
-				return value
+			parts := strings.Fields(line)
+			for _, part := range parts {
+				if value, err := strconv.ParseFloat(part, 64); err == nil {
+					return value
+				}
 			}
 		}
 	}
@@ -289,8 +307,11 @@ func parseNvmeTemperature(out string) float64 {
 		line = strings.TrimSpace(line)
 
 		if strings.HasPrefix(line, "Temperature Sensor 2:") {
-			if value, ok := extractFirstNumber(line); ok {
-				return value
+			parts := strings.Fields(line)
+			for _, part := range parts {
+				if value, err := strconv.ParseFloat(part, 64); err == nil {
+					return value
+				}
 			}
 		}
 	}
