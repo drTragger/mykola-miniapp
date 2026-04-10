@@ -15,12 +15,11 @@ import (
 	"sync"
 	"time"
 
-	gnet "github.com/shirou/gopsutil/v3/net"
-
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
+	gnet "github.com/shirou/gopsutil/v3/net"
 )
 
 var (
@@ -88,7 +87,7 @@ func fillOverview(resp *Response) {
 	resp.Overview = OverviewMetrics{
 		CPUUsagePercent:       cpuUsagePercent,
 		CPUTemperatureCelsius: readCPUTemperature(),
-		SSDTemperatureCelsius: readSSDTemperature(disks),
+		SSDTemperatureCelsius: readSystemDiskTemperature(disks),
 		CPUThrottled:          isCPUThrottled(),
 		RAMUsedBytes:          vm.Used,
 		RAMTotalBytes:         vm.Total,
@@ -253,9 +252,9 @@ func readDiskTemperature(device string) float64 {
 
 	patterns := []*regexp.Regexp{
 		regexp.MustCompile(`(?im)^Temperature:\s+([0-9]+)\s+Celsius`),
+		regexp.MustCompile(`(?im)^Current\s+Drive\s+Temperature:\s+([0-9]+)\s+C`),
 		regexp.MustCompile(`(?im)^194\s+Temperature_Celsius\s+.+?\s([0-9]+)\s*$`),
 		regexp.MustCompile(`(?im)^190\s+Airflow_Temperature_Cel\s+.+?\s([0-9]+)\s*$`),
-		regexp.MustCompile(`(?im)^Current\s+Drive\s+Temperature:\s+([0-9]+)\s+C`),
 	}
 
 	for _, re := range patterns {
@@ -267,6 +266,36 @@ func readDiskTemperature(device string) float64 {
 		value, err := strconv.ParseFloat(matches[1], 64)
 		if err == nil {
 			return value
+		}
+	}
+
+	return 0
+}
+
+func readSystemDiskTemperature(disks []DiskMetrics) float64 {
+	for _, diskItem := range disks {
+		if diskItem.Mountpoint == "/" && diskItem.TemperatureCelsius > 0 {
+			return diskItem.TemperatureCelsius
+		}
+	}
+
+	rootDevice, err := runCommand(2, "findmnt", "-n", "-o", "SOURCE", "/")
+	if err == nil {
+		rootDevice = strings.TrimSpace(rootDevice)
+
+		parentDevice := detectParentBlockDevice(rootDevice)
+		if parentDevice == "" {
+			parentDevice = rootDevice
+		}
+
+		if temp := readDiskTemperature(parentDevice); temp > 0 {
+			return temp
+		}
+	}
+
+	for _, diskItem := range disks {
+		if diskItem.TemperatureCelsius > 0 {
+			return diskItem.TemperatureCelsius
 		}
 	}
 
@@ -467,26 +496,6 @@ func isCPUThrottled() bool {
 		softTempLimitNow
 
 	return value&mask != 0
-}
-
-func readSSDTemperature(disks []DiskMetrics) float64 {
-	if len(disks) == 0 {
-		return 0
-	}
-
-	for _, diskItem := range disks {
-		if diskItem.Mountpoint == "/" && diskItem.TemperatureCelsius > 0 {
-			return diskItem.TemperatureCelsius
-		}
-	}
-
-	for _, diskItem := range disks {
-		if diskItem.TemperatureCelsius > 0 {
-			return diskItem.TemperatureCelsius
-		}
-	}
-
-	return 0
 }
 
 func runCommand(timeoutSec int, name string, args ...string) (string, error) {

@@ -36,7 +36,7 @@ frontend-build:
 
 build: frontend-install frontend-build
 	mkdir -p $(BUILD_DIR)
-	go build -o $(BINARY) $(CMD_PATH)
+	CGO_ENABLED=1 go build -o $(BINARY) $(CMD_PATH)
 
 run: build
 	BOT_TOKEN=$$BOT_TOKEN APP_ADDR=:8090 $(BINARY)
