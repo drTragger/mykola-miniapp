@@ -237,11 +237,9 @@ func readDiskTemperature(device string) float64 {
 
 	if strings.HasPrefix(device, "/dev/nvme") {
 		out, err = runSmartctlCommand(5, device)
-		if err != nil {
+		if err != nil && strings.TrimSpace(out) == "" {
 			fmt.Printf("DEBUG NVME smartctl error for %s: %v\n", device, err)
-			if strings.TrimSpace(out) == "" {
-				return 0
-			}
+			return 0
 		}
 
 		if temp := parseNvmeTemperature(out); temp > 0 {
@@ -278,9 +276,9 @@ func parseNvmeTemperature(out string) float64 {
 		line = strings.TrimSpace(line)
 
 		if strings.HasPrefix(line, "Temperature:") {
-			parts := strings.Fields(line)
-			for _, part := range parts {
-				if value, err := strconv.ParseFloat(part, 64); err == nil {
+			fields := strings.Fields(line)
+			for _, field := range fields {
+				if value, err := strconv.ParseFloat(field, 64); err == nil {
 					return value
 				}
 			}
@@ -291,9 +289,9 @@ func parseNvmeTemperature(out string) float64 {
 		line = strings.TrimSpace(line)
 
 		if strings.HasPrefix(line, "Temperature Sensor 1:") {
-			parts := strings.Fields(line)
-			for _, part := range parts {
-				if value, err := strconv.ParseFloat(part, 64); err == nil {
+			fields := strings.Fields(line)
+			for _, field := range fields {
+				if value, err := strconv.ParseFloat(field, 64); err == nil {
 					return value
 				}
 			}
@@ -304,9 +302,9 @@ func parseNvmeTemperature(out string) float64 {
 		line = strings.TrimSpace(line)
 
 		if strings.HasPrefix(line, "Temperature Sensor 2:") {
-			parts := strings.Fields(line)
-			for _, part := range parts {
-				if value, err := strconv.ParseFloat(part, 64); err == nil {
+			fields := strings.Fields(line)
+			for _, field := range fields {
+				if value, err := strconv.ParseFloat(field, 64); err == nil {
 					return value
 				}
 			}
