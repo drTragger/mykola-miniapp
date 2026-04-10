@@ -573,16 +573,11 @@ func runCommand(timeoutSec int, name string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-func runSudoCommand(timeoutSec int, cmd string, args ...string) (string, error) {
-	allArgs := append([]string{"-n", cmd}, args...)
-	return runCommand(timeoutSec, "sudo", allArgs...)
-}
-
 func runSmartctlCommand(timeoutSec int, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
 	defer cancel()
 
-	allArgs := append([]string{"-n", "smartctl"}, args...)
+	allArgs := append([]string{"-n", "smartctl", "-a"}, args...)
 	cmd := exec.CommandContext(ctx, "sudo", allArgs...)
 	out, err := cmd.CombinedOutput()
 
