@@ -137,6 +137,12 @@ func collectDiskMetrics() []DiskMetrics {
 		return nil
 	}
 
+	allowedMountpoints := map[string]bool{
+		"/":         true,
+		"/data":     true,
+		"/mnt/ssd1": true,
+	}
+
 	items := make([]DiskMetrics, 0, len(partitions))
 	seen := make(map[string]struct{})
 
@@ -149,7 +155,7 @@ func collectDiskMetrics() []DiskMetrics {
 			continue
 		}
 
-		if p.Mountpoint != "/" && p.Mountpoint != "/data" {
+		if !allowedMountpoints[p.Mountpoint] {
 			continue
 		}
 
@@ -185,13 +191,20 @@ func collectDiskMetrics() []DiskMetrics {
 	}
 
 	sort.Slice(items, func(i, j int) bool {
-		if items[i].Mountpoint == "/" {
-			return true
+		order := func(m string) int {
+			switch m {
+			case "/":
+				return 0
+			case "/data":
+				return 1
+			case "/mnt/ssd1":
+				return 2
+			default:
+				return 99
+			}
 		}
-		if items[j].Mountpoint == "/" {
-			return false
-		}
-		return items[i].Mountpoint < items[j].Mountpoint
+
+		return order(items[i].Mountpoint) < order(items[j].Mountpoint)
 	})
 
 	return items
@@ -211,12 +224,13 @@ func detectParentBlockDevice(source string) string {
 }
 
 func detectDiskName(device string, mountpoint string) string {
-	if mountpoint == "/" {
+	switch mountpoint {
+	case "/":
 		return "System SSD"
-	}
-
-	if mountpoint == "/data" {
+	case "/data":
 		return "Media SSD"
+	case "/mnt/ssd1":
+		return "Overflow SSD"
 	}
 
 	label, err := runCommand(2, "lsblk", "-no", "LABEL", device)
