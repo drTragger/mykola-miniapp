@@ -74,6 +74,10 @@ func fillOverview(resp *Response) {
 	var totalSize uint64
 
 	for _, diskItem := range disks {
+		if diskItem.Mountpoint != "/" && diskItem.Mountpoint != "/data" {
+			continue
+		}
+
 		totalUsed += diskItem.UsedBytes
 		totalSize += diskItem.TotalBytes
 	}
@@ -138,9 +142,9 @@ func collectDiskMetrics() []DiskMetrics {
 	}
 
 	allowedMountpoints := map[string]bool{
-		"/":         true,
-		"/data":     true,
-		"/mnt/ssd1": true,
+		"/":       true,
+		"/data":   true,
+		"/backup": true,
 	}
 
 	items := make([]DiskMetrics, 0, len(partitions))
@@ -197,7 +201,7 @@ func collectDiskMetrics() []DiskMetrics {
 				return 0
 			case "/data":
 				return 1
-			case "/mnt/ssd1":
+			case "/backup":
 				return 2
 			default:
 				return 99
@@ -229,8 +233,8 @@ func detectDiskName(device string, mountpoint string) string {
 		return "System SSD"
 	case "/data":
 		return "Media SSD"
-	case "/mnt/ssd1":
-		return "Overflow SSD"
+	case "/backup":
+		return "Backup SSD"
 	}
 
 	label, err := runCommand(2, "lsblk", "-no", "LABEL", device)
