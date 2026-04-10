@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -236,40 +235,109 @@ func readDiskTemperature(device string) float64 {
 	var err error
 
 	if strings.HasPrefix(device, "/dev/nvme") {
-		out, err = runSudoCommand(3, "smartctl", "-a", device)
+		out, err = runSudoCommand(5, "smartctl", "-a", device)
 		if err != nil {
 			return 0
 		}
-	} else {
-		out, err = runSudoCommand(3, "smartctl", "-a", "-d", "sat", device)
+
+		if temp := parseNvmeTemperature(out); temp > 0 {
+			return temp
+		}
+
+		return 0
+	}
+
+	out, err = runSudoCommand(5, "smartctl", "-a", "-d", "sat", device)
+	if err != nil {
+		out, err = runSudoCommand(5, "smartctl", "-a", device)
 		if err != nil {
-			out, err = runSudoCommand(3, "smartctl", "-a", device)
-			if err != nil {
-				return 0
+			return 0
+		}
+	}
+
+	if temp := parseAtaTemperature(out); temp > 0 {
+		return temp
+	}
+
+	return 0
+}
+
+func parseNvmeTemperature(out string) float64 {
+	lines := strings.Split(out, "\n")
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		if strings.HasPrefix(line, "Temperature:") {
+			if value, ok := extractFirstNumber(line); ok {
+				return value
 			}
 		}
 	}
 
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`(?im)^Temperature:\s+([0-9]+)\s+Celsius`),
-		regexp.MustCompile(`(?im)^Current\s+Drive\s+Temperature:\s+([0-9]+)\s+C`),
-		regexp.MustCompile(`(?im)^194\s+Temperature_Celsius\s+.+?\s([0-9]+)\s*$`),
-		regexp.MustCompile(`(?im)^190\s+Airflow_Temperature_Cel\s+.+?\s([0-9]+)\s*$`),
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		if strings.HasPrefix(line, "Temperature Sensor 1:") {
+			if value, ok := extractFirstNumber(line); ok {
+				return value
+			}
+		}
 	}
 
-	for _, re := range patterns {
-		matches := re.FindStringSubmatch(out)
-		if len(matches) < 2 {
-			continue
-		}
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
 
-		value, err := strconv.ParseFloat(matches[1], 64)
-		if err == nil {
-			return value
+		if strings.HasPrefix(line, "Temperature Sensor 2:") {
+			if value, ok := extractFirstNumber(line); ok {
+				return value
+			}
 		}
 	}
 
 	return 0
+}
+
+func parseAtaTemperature(out string) float64 {
+	lines := strings.Split(out, "\n")
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		if strings.Contains(line, "Temperature_Celsius") || strings.Contains(line, "Airflow_Temperature_Cel") {
+			fields := strings.Fields(line)
+			if len(fields) == 0 {
+				continue
+			}
+
+			last := fields[len(fields)-1]
+			value, err := strconv.ParseFloat(last, 64)
+			if err == nil && value > 0 {
+				return value
+			}
+		}
+
+		if strings.HasPrefix(line, "Current Drive Temperature:") {
+			if value, ok := extractFirstNumber(line); ok {
+				return value
+			}
+		}
+	}
+
+	return 0
+}
+
+func extractFirstNumber(s string) (float64, bool) {
+	fields := strings.Fields(s)
+
+	for _, field := range fields {
+		value, err := strconv.ParseFloat(field, 64)
+		if err == nil {
+			return value, true
+		}
+	}
+
+	return 0, false
 }
 
 func readSystemDiskTemperature(disks []DiskMetrics) float64 {
