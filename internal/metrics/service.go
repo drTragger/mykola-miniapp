@@ -88,7 +88,7 @@ func fillOverview(resp *Response) {
 	resp.Overview = OverviewMetrics{
 		CPUUsagePercent:       cpuUsagePercent,
 		CPUTemperatureCelsius: readCPUTemperature(),
-		SSDTemperatureCelsius: readSSDTemperature(),
+		SSDTemperatureCelsius: readSSDTemperature(disks),
 		CPUThrottled:          isCPUThrottled(),
 		RAMUsedBytes:          vm.Used,
 		RAMTotalBytes:         vm.Total,
@@ -233,23 +233,40 @@ func readDiskTemperature(device string) float64 {
 		return 0
 	}
 
-	out, err := runSudoCommand(3, "smartctl", "-a", "-d", "sat", device)
-	if err != nil {
+	var out string
+	var err error
+
+	if strings.HasPrefix(device, "/dev/nvme") {
 		out, err = runSudoCommand(3, "smartctl", "-a", device)
 		if err != nil {
 			return 0
 		}
+	} else {
+		out, err = runSudoCommand(3, "smartctl", "-a", "-d", "sat", device)
+		if err != nil {
+			out, err = runSudoCommand(3, "smartctl", "-a", device)
+			if err != nil {
+				return 0
+			}
+		}
 	}
 
-	re := regexp.MustCompile(`(?i)(Temperature_Celsius|Airflow_Temperature_Cel).*?(\d+)$`)
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`(?im)^Temperature:\s+([0-9]+)\s+Celsius`),
+		regexp.MustCompile(`(?im)^194\s+Temperature_Celsius\s+.+?\s([0-9]+)\s*$`),
+		regexp.MustCompile(`(?im)^190\s+Airflow_Temperature_Cel\s+.+?\s([0-9]+)\s*$`),
+		regexp.MustCompile(`(?im)^Current\s+Drive\s+Temperature:\s+([0-9]+)\s+C`),
+	}
 
-	for _, line := range strings.Split(out, "\n") {
-		matches := re.FindStringSubmatch(strings.TrimSpace(line))
-		if len(matches) == 3 {
-			value, err := strconv.ParseFloat(matches[2], 64)
-			if err == nil {
-				return value
-			}
+	for _, re := range patterns {
+		matches := re.FindStringSubmatch(out)
+		if len(matches) < 2 {
+			continue
+		}
+
+		value, err := strconv.ParseFloat(matches[1], 64)
+		if err == nil {
+			return value
 		}
 	}
 
@@ -452,8 +469,7 @@ func isCPUThrottled() bool {
 	return value&mask != 0
 }
 
-func readSSDTemperature() float64 {
-	disks := collectDiskMetrics()
+func readSSDTemperature(disks []DiskMetrics) float64 {
 	if len(disks) == 0 {
 		return 0
 	}
