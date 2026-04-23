@@ -1,8 +1,10 @@
 package processes
 
 import (
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -39,23 +41,18 @@ func ListProcesses(params ListParams) ([]ProcessInfo, int, error) {
 	}
 
 	now := time.Now()
-	items := make([]ProcessInfo, 0, len(procs))
+	infos := buildProcessInfosParallel(procs, now)
 
-	for _, p := range procs {
-		info, ok := buildProcessInfo(p, now)
-		if !ok {
+	items := make([]ProcessInfo, 0, len(infos))
+	search := strings.ToLower(strings.TrimSpace(params.Search))
+
+	for _, info := range infos {
+		if info.PID == 0 {
 			continue
 		}
-
-		if params.Search != "" {
-			q := strings.ToLower(params.Search)
-			if !strings.Contains(strings.ToLower(info.Name), q) &&
-				!strings.Contains(strings.ToLower(info.Cmdline), q) &&
-				!strings.Contains(strings.ToLower(info.User), q) {
-				continue
-			}
+		if search != "" && !matchesSearch(info, search) {
+			continue
 		}
-
 		items = append(items, info)
 	}
 
@@ -80,6 +77,51 @@ func ListProcesses(params ListParams) ([]ProcessInfo, int, error) {
 	}
 
 	return items[offset:end], total, nil
+}
+
+func buildProcessInfosParallel(procs []*process.Process, now time.Time) []ProcessInfo {
+	infos := make([]ProcessInfo, len(procs))
+
+	workers := runtime.GOMAXPROCS(0) * 2
+	if workers < 4 {
+		workers = 4
+	}
+	if workers > len(procs) {
+		workers = len(procs)
+	}
+	if workers < 1 {
+		return infos
+	}
+
+	jobs := make(chan int, len(procs))
+	for i := range procs {
+		jobs <- i
+	}
+	close(jobs)
+
+	var wg sync.WaitGroup
+	wg.Add(workers)
+
+	for w := 0; w < workers; w++ {
+		go func() {
+			defer wg.Done()
+			for idx := range jobs {
+				info, ok := buildProcessInfo(procs[idx], now)
+				if ok {
+					infos[idx] = info
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+	return infos
+}
+
+func matchesSearch(info ProcessInfo, q string) bool {
+	return strings.Contains(strings.ToLower(info.Name), q) ||
+		strings.Contains(strings.ToLower(info.Cmdline), q) ||
+		strings.Contains(strings.ToLower(info.User), q)
 }
 
 func buildProcessInfo(p *process.Process, now time.Time) (ProcessInfo, bool) {
@@ -141,7 +183,7 @@ func buildProcessInfo(p *process.Process, now time.Time) (ProcessInfo, bool) {
 func sortProcesses(items []ProcessInfo, sortBy, dir string) {
 	desc := strings.ToLower(dir) != "asc"
 
-	less := func(i, j int) bool { return items[i].CPUPercent > items[j].CPUPercent }
+	var less func(i, j int) bool
 
 	switch strings.ToLower(sortBy) {
 	case "memory":
@@ -152,6 +194,8 @@ func sortProcesses(items []ProcessInfo, sortBy, dir string) {
 		less = func(i, j int) bool { return items[i].PID < items[j].PID }
 	case "uptime":
 		less = func(i, j int) bool { return items[i].UptimeSec > items[j].UptimeSec }
+	default:
+		less = func(i, j int) bool { return items[i].CPUPercent > items[j].CPUPercent }
 	}
 
 	sort.Slice(items, func(i, j int) bool {
@@ -160,6 +204,16 @@ func sortProcesses(items []ProcessInfo, sortBy, dir string) {
 		}
 		return !less(i, j)
 	})
+}
+
+var criticalCmdlineParts = []string{
+	"systemd",
+	"sshd",
+	"dbus",
+	"cloudflared",
+	"wg-quick",
+	"mykola-miniapp",
+	"mykola-bot",
 }
 
 func isCriticalProcess(pid int32, name, cmdline string) bool {
@@ -172,16 +226,7 @@ func isCriticalProcess(pid int32, name, cmdline string) bool {
 	}
 
 	lc := strings.ToLower(cmdline)
-
-	for _, part := range []string{
-		"systemd",
-		"sshd",
-		"dbus",
-		"cloudflared",
-		"wg-quick",
-		"mykola-miniapp",
-		"mykola-bot",
-	} {
+	for _, part := range criticalCmdlineParts {
 		if strings.Contains(lc, part) {
 			return true
 		}

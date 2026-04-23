@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"runtime/debug"
 	"strings"
 
 	"github.com/drTragger/mykola-miniapp/internal/config"
@@ -19,8 +20,7 @@ func NewRouter() (http.Handler, error) {
 		return nil, err
 	}
 
-	fileSystem := http.FS(staticFiles)
-	fileServer := http.FileServer(fileSystem)
+	fileServer := http.FileServer(http.FS(staticFiles))
 
 	mux := http.NewServeMux()
 	apiMux := http.NewServeMux()
@@ -55,7 +55,6 @@ func NewRouter() (http.Handler, error) {
 	})
 
 	mux.Handle("/api/", telegramAuthMiddleware(cfg, apiMux))
-
 	mux.Handle("/assets/", fileServer)
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -74,7 +73,7 @@ func NewRouter() (http.Handler, error) {
 		serveIndex(w, staticFiles)
 	})
 
-	return logRequests(mux), nil
+	return recoverMiddleware(logRequests(mux)), nil
 }
 
 func serveIndex(w http.ResponseWriter, staticFiles fs.FS) {
@@ -92,6 +91,18 @@ func serveIndex(w http.ResponseWriter, staticFiles fs.FS) {
 func logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s %s %s", r.Method, r.URL.Path, r.RemoteAddr)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func recoverMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("panic in %s %s: %v\n%s", r.Method, r.URL.Path, rec, debug.Stack())
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+			}
+		}()
 		next.ServeHTTP(w, r)
 	})
 }

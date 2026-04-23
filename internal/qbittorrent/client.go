@@ -1,7 +1,6 @@
 package qbittorrent
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -73,28 +72,56 @@ func (c *Client) ensureLoggedIn() error {
 	return nil
 }
 
-func (c *Client) ListTorrents() ([]Torrent, error) {
+func (c *Client) doAuthorized(method, path, body, contentType string) (*http.Response, error) {
 	if err := c.ensureLoggedIn(); err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/api/v2/torrents/info", nil)
+	attempt := func() (*http.Response, error) {
+		var reader io.Reader
+		if body != "" {
+			reader = strings.NewReader(body)
+		}
+
+		req, err := http.NewRequest(method, c.baseURL+path, reader)
+		if err != nil {
+			return nil, err
+		}
+
+		if contentType != "" {
+			req.Header.Set("Content-Type", contentType)
+		}
+
+		return c.client.Do(req)
+	}
+
+	resp, err := attempt()
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := c.client.Do(req)
+	if resp.StatusCode == http.StatusForbidden {
+		resp.Body.Close()
+
+		if err := c.ensureLoggedIn(); err != nil {
+			return nil, err
+		}
+
+		resp, err = attempt()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return resp, nil
+}
+
+func (c *Client) ListTorrents() ([]Torrent, error) {
+	resp, err := c.doAuthorized(http.MethodGet, "/api/v2/torrents/info", "", "")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusForbidden {
-		if err := c.ensureLoggedIn(); err != nil {
-			return nil, err
-		}
-		return c.ListTorrents()
-	}
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -156,29 +183,13 @@ func (c *Client) ListTorrents() ([]Torrent, error) {
 }
 
 func (c *Client) GetTorrentPeers(hash string) ([]TorrentPeer, error) {
-	if err := c.ensureLoggedIn(); err != nil {
-		return nil, err
-	}
+	path := "/api/v2/sync/torrentPeers?hash=" + url.QueryEscape(hash)
 
-	endpoint := fmt.Sprintf("%s/api/v2/sync/torrentPeers?hash=%s", c.baseURL, url.QueryEscape(hash))
-
-	req, err := http.NewRequest(http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := c.client.Do(req)
+	resp, err := c.doAuthorized(http.MethodGet, path, "", "")
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusForbidden {
-		if err := c.ensureLoggedIn(); err != nil {
-			return nil, err
-		}
-		return c.GetTorrentPeers(hash)
-	}
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -233,81 +244,42 @@ func (c *Client) GetTorrentPeers(hash string) ([]TorrentPeer, error) {
 }
 
 func (c *Client) Pause(hashes []string) error {
-	return c.postHashes("/api/v2/torrents/pause", hashes)
+	return c.postHashes("/api/v2/torrents/pause", hashes, nil)
 }
 
 func (c *Client) Resume(hashes []string) error {
-	return c.postHashes("/api/v2/torrents/resume", hashes)
+	return c.postHashes("/api/v2/torrents/resume", hashes, nil)
 }
 
 func (c *Client) Delete(hashes []string, deleteFiles bool) error {
-	if err := c.ensureLoggedIn(); err != nil {
-		return err
-	}
-
-	form := url.Values{}
-	form.Set("hashes", strings.Join(hashes, "|"))
+	extras := url.Values{}
 	if deleteFiles {
-		form.Set("deleteFiles", "true")
+		extras.Set("deleteFiles", "true")
 	} else {
-		form.Set("deleteFiles", "false")
+		extras.Set("deleteFiles", "false")
 	}
-
-	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/api/v2/torrents/delete", bytes.NewBufferString(form.Encode()))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusForbidden {
-		if err := c.ensureLoggedIn(); err != nil {
-			return err
-		}
-		return c.Delete(hashes, deleteFiles)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("qbittorrent delete failed: %s", strings.TrimSpace(string(body)))
-	}
-
-	return nil
+	return c.postHashes("/api/v2/torrents/delete", hashes, extras)
 }
 
-func (c *Client) postHashes(path string, hashes []string) error {
-	if err := c.ensureLoggedIn(); err != nil {
-		return err
-	}
-
+func (c *Client) postHashes(path string, hashes []string, extras url.Values) error {
 	form := url.Values{}
 	form.Set("hashes", strings.Join(hashes, "|"))
-
-	req, err := http.NewRequest(http.MethodPost, c.baseURL+path, bytes.NewBufferString(form.Encode()))
-	if err != nil {
-		return err
+	for k, vs := range extras {
+		for _, v := range vs {
+			form.Add(k, v)
+		}
 	}
 
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := c.client.Do(req)
+	resp, err := c.doAuthorized(
+		http.MethodPost,
+		path,
+		form.Encode(),
+		"application/x-www-form-urlencoded",
+	)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusForbidden {
-		if err := c.ensureLoggedIn(); err != nil {
-			return err
-		}
-		return c.postHashes(path, hashes)
-	}
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

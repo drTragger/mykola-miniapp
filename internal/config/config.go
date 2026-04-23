@@ -2,6 +2,7 @@ package config
 
 import (
 	"log"
+	"sync"
 
 	"github.com/BurntSushi/toml"
 )
@@ -27,21 +28,25 @@ type Config struct {
 	}
 }
 
+var (
+	loadOnce sync.Once
+	cached   Config
+)
+
 func Load() Config {
-	var cfg Config
+	loadOnce.Do(func() {
+		if _, err := toml.DecodeFile("config.toml", &cached); err != nil {
+			log.Fatal("failed to load config.toml: ", err)
+		}
 
-	_, err := toml.DecodeFile("config.toml", &cfg)
-	if err != nil {
-		log.Fatal("failed to load config.toml:", err)
-	}
+		if cached.App.Addr == "" {
+			cached.App.Addr = ":8090"
+		}
 
-	if cfg.App.Addr == "" {
-		cfg.App.Addr = ":8090"
-	}
+		if cached.QBittorrent.BaseURL == "" {
+			cached.QBittorrent.BaseURL = "http://127.0.0.1:8080"
+		}
+	})
 
-	if cfg.QBittorrent.BaseURL == "" {
-		cfg.QBittorrent.BaseURL = "http://127.0.0.1:8080"
-	}
-
-	return cfg
+	return cached
 }

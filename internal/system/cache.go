@@ -1,62 +1,18 @@
 package system
 
 import (
-	"sync"
+	"context"
 	"time"
+
+	"github.com/drTragger/mykola-miniapp/internal/cache"
 )
 
-var (
-	cacheMu       sync.RWMutex
-	cached        Response
-	cacheReady    bool
-	backgroundRun sync.Once
-)
+var snapshotCache = cache.New(Collect)
 
-func StartBackgroundRefresh(interval time.Duration) {
-	backgroundRun.Do(func() {
-		refresh := func() {
-			resp, err := Collect()
-			if err != nil {
-				return
-			}
-
-			cacheMu.Lock()
-			cached = resp
-			cacheReady = true
-			cacheMu.Unlock()
-		}
-
-		refresh()
-
-		go func() {
-			ticker := time.NewTicker(interval)
-			defer ticker.Stop()
-
-			for range ticker.C {
-				refresh()
-			}
-		}()
-	})
+func StartBackgroundRefresh(ctx context.Context, interval time.Duration) {
+	snapshotCache.Start(ctx, interval)
 }
 
 func GetSnapshot() (Response, error) {
-	cacheMu.RLock()
-	if cacheReady {
-		resp := cached
-		cacheMu.RUnlock()
-		return resp, nil
-	}
-	cacheMu.RUnlock()
-
-	resp, err := Collect()
-	if err != nil {
-		return Response{}, err
-	}
-
-	cacheMu.Lock()
-	cached = resp
-	cacheReady = true
-	cacheMu.Unlock()
-
-	return resp, nil
+	return snapshotCache.Get()
 }
