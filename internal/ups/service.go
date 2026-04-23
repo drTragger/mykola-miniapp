@@ -1,12 +1,12 @@
 package ups
 
 import (
-	"context"
 	"fmt"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/drTragger/mykola-miniapp/internal/sysutil"
 )
 
 const (
@@ -53,10 +53,9 @@ const (
 	minVBUSPresentMV   = 5000
 	minChargeCurrentMA = 100
 
-	i2cTimeoutSec     = 2
-	i2cReadRetries    = 3
-	i2cRetryDelay     = 150 * time.Millisecond
-	i2cRecoverTimeout = 2
+	i2cTimeoutSec  = 2
+	i2cReadRetries = 3
+	i2cRetryDelay  = 150 * time.Millisecond
 )
 
 type rawSnapshot struct {
@@ -128,57 +127,68 @@ func Collect() (Response, error) {
 	}, nil
 }
 
+type u16Spec struct {
+	name   string
+	lo, hi string
+	signed bool
+	target *int
+}
+
+type u8Spec struct {
+	reg      string
+	fallback int
+	target   *int
+}
+
 func readRawSnapshot() (*rawSnapshot, error) {
 	s := &rawSnapshot{}
-	var err error
 
-	if s.VBUSVoltageMV, err = readU16LE(regVBUSVoltageLo, regVBUSVoltageHi); err != nil {
-		return nil, fmt.Errorf("read VBUS voltage: %w", err)
-	}
-	if s.VBUSCurrentMA, err = readU16LE(regVBUSCurrentLo, regVBUSCurrentHi); err != nil {
-		return nil, fmt.Errorf("read VBUS current: %w", err)
-	}
-	if s.VBUSPowerMW, err = readU16LE(regVBUSPowerLo, regVBUSPowerHi); err != nil {
-		return nil, fmt.Errorf("read VBUS power: %w", err)
-	}
-
-	if s.BatteryVoltageMV, err = readU16LE(regBatteryVoltageLo, regBatteryVoltageHi); err != nil {
-		return nil, fmt.Errorf("read battery voltage: %w", err)
-	}
-	if s.BatteryCurrentMA, err = readS16LE(regBatteryCurrentLo, regBatteryCurrentHi); err != nil {
-		return nil, fmt.Errorf("read battery current: %w", err)
-	}
-	if s.BatteryPercent, err = readU16LE(regBatteryPercentLo, regBatteryPercentHi); err != nil {
-		return nil, fmt.Errorf("read battery percent: %w", err)
-	}
-	if s.RemainingMAh, err = readU16LE(regRemainCapLo, regRemainCapHi); err != nil {
-		return nil, fmt.Errorf("read remaining mAh: %w", err)
-	}
-	if s.RemainDisMin, err = readU16LE(regRemainDisLo, regRemainDisHi); err != nil {
-		return nil, fmt.Errorf("read remain discharge min: %w", err)
-	}
-	if s.RemainChgMin, err = readU16LE(regRemainChgLo, regRemainChgHi); err != nil {
-		return nil, fmt.Errorf("read remain charge min: %w", err)
+	specs := []u16Spec{
+		{"VBUS voltage", regVBUSVoltageLo, regVBUSVoltageHi, false, &s.VBUSVoltageMV},
+		{"VBUS current", regVBUSCurrentLo, regVBUSCurrentHi, false, &s.VBUSCurrentMA},
+		{"VBUS power", regVBUSPowerLo, regVBUSPowerHi, false, &s.VBUSPowerMW},
+		{"battery voltage", regBatteryVoltageLo, regBatteryVoltageHi, false, &s.BatteryVoltageMV},
+		{"battery current", regBatteryCurrentLo, regBatteryCurrentHi, true, &s.BatteryCurrentMA},
+		{"battery percent", regBatteryPercentLo, regBatteryPercentHi, false, &s.BatteryPercent},
+		{"remaining mAh", regRemainCapLo, regRemainCapHi, false, &s.RemainingMAh},
+		{"remain discharge min", regRemainDisLo, regRemainDisHi, false, &s.RemainDisMin},
+		{"remain charge min", regRemainChgLo, regRemainChgHi, false, &s.RemainChgMin},
+		{"cell1", regCell1Lo, regCell1Hi, false, &s.Cell1MV},
+		{"cell2", regCell2Lo, regCell2Hi, false, &s.Cell2MV},
+		{"cell3", regCell3Lo, regCell3Hi, false, &s.Cell3MV},
+		{"cell4", regCell4Lo, regCell4Hi, false, &s.Cell4MV},
 	}
 
-	if s.Cell1MV, err = readU16LE(regCell1Lo, regCell1Hi); err != nil {
-		return nil, fmt.Errorf("read cell1: %w", err)
-	}
-	if s.Cell2MV, err = readU16LE(regCell2Lo, regCell2Hi); err != nil {
-		return nil, fmt.Errorf("read cell2: %w", err)
-	}
-	if s.Cell3MV, err = readU16LE(regCell3Lo, regCell3Hi); err != nil {
-		return nil, fmt.Errorf("read cell3: %w", err)
-	}
-	if s.Cell4MV, err = readU16LE(regCell4Lo, regCell4Hi); err != nil {
-		return nil, fmt.Errorf("read cell4: %w", err)
+	for _, spec := range specs {
+		var (
+			v   int
+			err error
+		)
+
+		if spec.signed {
+			v, err = readS16LE(spec.lo, spec.hi)
+		} else {
+			v, err = readU16LE(spec.lo, spec.hi)
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("read %s: %w", spec.name, err)
+		}
+
+		*spec.target = v
 	}
 
-	s.CommState = readReg8Optional(regCommState, -1)
-	s.ChargeState = readReg8Optional(regChargeState, -1)
-	s.FirmwareVersion = readReg8Optional(regFirmwareVersion, -1)
+	optionalU8 := []u8Spec{
+		{regCommState, -1, &s.CommState},
+		{regChargeState, -1, &s.ChargeState},
+		{regFirmwareVersion, -1, &s.FirmwareVersion},
+	}
+
+	for _, spec := range optionalU8 {
+		*spec.target = readReg8Optional(spec.reg, spec.fallback)
+	}
+
 	s.FullCapacityMAh = readU16LEOptional(regFullCapLo, regFullCapHi, 0)
-
 	s.ReadAt = time.Now()
 
 	return s, nil
@@ -293,9 +303,7 @@ func (s *rawSnapshot) ChargePhase() string {
 		return "н/д"
 	}
 
-	phase := s.ChargeState & 0x07
-
-	switch phase {
+	switch s.ChargeState & 0x07 {
 	case 0:
 		return "очікування"
 	case 1:
@@ -505,7 +513,7 @@ func readReg8(reg string) (int, error) {
 }
 
 func readReg8Once(reg string) (int, error) {
-	out, err := runCommand(
+	out, err := sysutil.RunCommand(
 		i2cTimeoutSec,
 		"i2cget",
 		"-y",
@@ -546,22 +554,6 @@ func readS16LE(lo, hi string) (int, error) {
 		return v - 65536, nil
 	}
 	return v, nil
-}
-
-func runCommand(timeoutSec int, name string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, name, args...)
-	out, err := cmd.CombinedOutput()
-	if ctx.Err() == context.DeadlineExceeded {
-		return "", fmt.Errorf("command timeout")
-	}
-	if err != nil {
-		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-
-	return strings.TrimSpace(string(out)), nil
 }
 
 func round3(v float64) float64 {

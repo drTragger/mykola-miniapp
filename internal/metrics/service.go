@@ -3,9 +3,7 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"io"
-	"net"
-	"net/http"
+	"log"
 	"os"
 	"os/exec"
 	"sort"
@@ -14,27 +12,23 @@ import (
 	"sync"
 	"time"
 
-	gnet "github.com/shirou/gopsutil/v3/net"
-
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
+
+	"github.com/drTragger/mykola-miniapp/internal/sysutil"
 )
 
-var (
-	netSampleMu   sync.Mutex
-	lastSampleAt  time.Time
-	lastRxBytes   uint64
-	lastTxBytes   uint64
-	httpClient    = &http.Client{Timeout: 2 * time.Second}
-	serviceDialTO = 500 * time.Millisecond
-)
+const serviceDialTO = 500 * time.Millisecond
+
+var netSampler = sysutil.NewNetworkSampler()
 
 func Collect() (Response, error) {
-	var resp Response
-	resp.OK = true
-	resp.CollectedAt = time.Now().Format(time.RFC3339)
+	resp := Response{
+		OK:          true,
+		CollectedAt: time.Now().Format(time.RFC3339),
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(3)
@@ -60,31 +54,59 @@ func Collect() (Response, error) {
 }
 
 func fillOverview(resp *Response) {
-	vm, _ := mem.VirtualMemory()
-	hostInfo, _ := host.Info()
+	var (
+		vm              *mem.VirtualMemoryStat
+		hostInfo        *host.InfoStat
+		cpuUsagePercent float64
+		disks           []DiskMetrics
+	)
 
-	cpuUsagePercent := 0.0
-	if cpuPercents, err := cpu.Percent(0, false); err == nil && len(cpuPercents) > 0 {
-		cpuUsagePercent = cpuPercents[0]
-	}
+	var wg sync.WaitGroup
+	wg.Add(4)
 
-	disks := collectDiskMetrics()
+	go func() {
+		defer wg.Done()
+		vm, _ = mem.VirtualMemory()
+	}()
 
-	var totalUsed uint64
-	var totalSize uint64
+	go func() {
+		defer wg.Done()
+		hostInfo, _ = host.Info()
+	}()
 
-	for _, diskItem := range disks {
-		if diskItem.Mountpoint != "/" && diskItem.Mountpoint != "/data" {
+	go func() {
+		defer wg.Done()
+		if cpuPercents, err := cpu.Percent(0, false); err == nil && len(cpuPercents) > 0 {
+			cpuUsagePercent = cpuPercents[0]
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		disks = collectDiskMetrics()
+	}()
+
+	wg.Wait()
+
+	var totalUsed, totalSize uint64
+	for _, d := range disks {
+		if d.Mountpoint != "/" && d.Mountpoint != "/data" {
 			continue
 		}
-
-		totalUsed += diskItem.UsedBytes
-		totalSize += diskItem.TotalBytes
+		totalUsed += d.UsedBytes
+		totalSize += d.TotalBytes
 	}
 
 	diskUsagePercent := 0.0
 	if totalSize > 0 {
 		diskUsagePercent = (float64(totalUsed) / float64(totalSize)) * 100
+	}
+
+	if vm == nil {
+		vm = &mem.VirtualMemoryStat{}
+	}
+	if hostInfo == nil {
+		hostInfo = &host.InfoStat{}
 	}
 
 	resp.Disks = disks
@@ -104,10 +126,33 @@ func fillOverview(resp *Response) {
 }
 
 func fillNetwork(resp *Response) {
-	localIPv4 := detectLocalIPv4()
-	publicIP := detectPublicIP()
-	pingMs := measureTCPPing("1.1.1.1:443")
-	rxTotal, txTotal, rxSpeed, txSpeed := sampleNetworkTotals()
+	var (
+		localIPv4 string
+		publicIP  string
+		pingMs    float64
+	)
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	go func() {
+		defer wg.Done()
+		localIPv4 = sysutil.DetectLocalIPv4()
+	}()
+
+	go func() {
+		defer wg.Done()
+		publicIP = sysutil.DetectPublicIP()
+	}()
+
+	go func() {
+		defer wg.Done()
+		pingMs = sysutil.MeasureTCPPing("1.1.1.1:443")
+	}()
+
+	rxTotal, txTotal, rxSpeed, txSpeed := netSampler.Sample()
+
+	wg.Wait()
 
 	resp.Network = NetworkMetrics{
 		LocalIPv4:    localIPv4,
@@ -117,22 +162,43 @@ func fillNetwork(resp *Response) {
 		TxBytesTotal: txTotal,
 		RxSpeedBps:   rxSpeed,
 		TxSpeedBps:   txSpeed,
-		RxTotalHuman: humanBytes(rxTotal),
-		TxTotalHuman: humanBytes(txTotal),
-		RxSpeedHuman: humanBytes(uint64(rxSpeed)) + "/s",
-		TxSpeedHuman: humanBytes(uint64(txSpeed)) + "/s",
+		RxTotalHuman: sysutil.HumanBytes(rxTotal),
+		TxTotalHuman: sysutil.HumanBytes(txTotal),
+		RxSpeedHuman: sysutil.HumanBytes(uint64(rxSpeed)) + "/s",
+		TxSpeedHuman: sysutil.HumanBytes(uint64(txSpeed)) + "/s",
 	}
 }
 
 func fillServices(resp *Response) {
-	resp.Services = ServicesMetrics{
-		Jellyfin:    isTCPPortOpen("127.0.0.1:8096"),
-		QBittorrent: isTCPPortOpen("127.0.0.1:8080"),
-		Sonarr:      isTCPPortOpen("127.0.0.1:8989"),
-		Radarr:      isTCPPortOpen("127.0.0.1:7878"),
-		Prowlarr:    isTCPPortOpen("127.0.0.1:9696"),
-		Fail2ban:    isServiceActive("fail2ban"),
+	targets := []struct {
+		name string
+		addr string
+		dst  *bool
+	}{
+		{"Jellyfin", "127.0.0.1:8096", &resp.Services.Jellyfin},
+		{"QBittorrent", "127.0.0.1:8080", &resp.Services.QBittorrent},
+		{"Sonarr", "127.0.0.1:8989", &resp.Services.Sonarr},
+		{"Radarr", "127.0.0.1:7878", &resp.Services.Radarr},
+		{"Prowlarr", "127.0.0.1:9696", &resp.Services.Prowlarr},
 	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(targets) + 1)
+
+	for _, t := range targets {
+		t := t
+		go func() {
+			defer wg.Done()
+			*t.dst = sysutil.IsTCPPortOpen(t.addr, serviceDialTO)
+		}()
+	}
+
+	go func() {
+		defer wg.Done()
+		resp.Services.Fail2ban = sysutil.IsServiceActive("fail2ban")
+	}()
+
+	wg.Wait()
 }
 
 func collectDiskMetrics() []DiskMetrics {
@@ -147,18 +213,19 @@ func collectDiskMetrics() []DiskMetrics {
 		"/backup": true,
 	}
 
-	items := make([]DiskMetrics, 0, len(partitions))
+	type entry struct {
+		device     string
+		mountpoint string
+		fstype     string
+	}
+
+	candidates := make([]entry, 0, len(partitions))
 	seen := make(map[string]struct{})
 
 	for _, p := range partitions {
-		if !strings.HasPrefix(p.Device, "/dev/") {
+		if !strings.HasPrefix(p.Device, "/dev/") || p.Mountpoint == "" {
 			continue
 		}
-
-		if p.Mountpoint == "" {
-			continue
-		}
-
 		if !allowedMountpoints[p.Mountpoint] {
 			continue
 		}
@@ -168,33 +235,51 @@ func collectDiskMetrics() []DiskMetrics {
 			continue
 		}
 		seen[key] = struct{}{}
-
-		usage, err := disk.Usage(p.Mountpoint)
-		if err != nil {
-			continue
-		}
-
-		parentDevice := detectParentBlockDevice(p.Device)
-		if parentDevice == "" {
-			parentDevice = p.Device
-		}
-
-		name := detectDiskName(parentDevice, p.Mountpoint)
-
-		items = append(items, DiskMetrics{
-			Name:               name,
-			Device:             parentDevice,
-			Mountpoint:         p.Mountpoint,
-			Fstype:             p.Fstype,
-			UsedBytes:          usage.Used,
-			TotalBytes:         usage.Total,
-			FreeBytes:          usage.Free,
-			UsagePercent:       usage.UsedPercent,
-			TemperatureCelsius: readDiskTemperature(parentDevice),
-		})
+		candidates = append(candidates, entry{p.Device, p.Mountpoint, p.Fstype})
 	}
 
-	sort.Slice(items, func(i, j int) bool {
+	items := make([]DiskMetrics, len(candidates))
+
+	var wg sync.WaitGroup
+	for i, c := range candidates {
+		i, c := i, c
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			usage, err := disk.Usage(c.mountpoint)
+			if err != nil {
+				return
+			}
+
+			parentDevice := detectParentBlockDevice(c.device)
+			if parentDevice == "" {
+				parentDevice = c.device
+			}
+
+			items[i] = DiskMetrics{
+				Name:               detectDiskName(parentDevice, c.mountpoint),
+				Device:             parentDevice,
+				Mountpoint:         c.mountpoint,
+				Fstype:             c.fstype,
+				UsedBytes:          usage.Used,
+				TotalBytes:         usage.Total,
+				FreeBytes:          usage.Free,
+				UsagePercent:       usage.UsedPercent,
+				TemperatureCelsius: readDiskTemperature(parentDevice),
+			}
+		}()
+	}
+	wg.Wait()
+
+	filtered := items[:0]
+	for _, it := range items {
+		if it.Device != "" {
+			filtered = append(filtered, it)
+		}
+	}
+
+	sort.Slice(filtered, func(i, j int) bool {
 		order := func(m string) int {
 			switch m {
 			case "/":
@@ -207,11 +292,10 @@ func collectDiskMetrics() []DiskMetrics {
 				return 99
 			}
 		}
-
-		return order(items[i].Mountpoint) < order(items[j].Mountpoint)
+		return order(filtered[i].Mountpoint) < order(filtered[j].Mountpoint)
 	})
 
-	return items
+	return filtered
 }
 
 func detectParentBlockDevice(source string) string {
@@ -219,7 +303,7 @@ func detectParentBlockDevice(source string) string {
 		return ""
 	}
 
-	parent, err := runCommand(2, "lsblk", "-no", "PKNAME", source)
+	parent, err := sysutil.RunCommand(2, "lsblk", "-no", "PKNAME", source)
 	if err == nil && strings.TrimSpace(parent) != "" {
 		return "/dev/" + strings.TrimSpace(parent)
 	}
@@ -237,7 +321,7 @@ func detectDiskName(device string, mountpoint string) string {
 		return "Backup SSD"
 	}
 
-	label, err := runCommand(2, "lsblk", "-no", "LABEL", device)
+	label, err := sysutil.RunCommand(2, "lsblk", "-no", "LABEL", device)
 	if err == nil && strings.TrimSpace(label) != "" {
 		return strings.TrimSpace(label)
 	}
@@ -250,105 +334,67 @@ func readDiskTemperature(device string) float64 {
 		return 0
 	}
 
-	var out string
-	var err error
-
 	if strings.HasPrefix(device, "/dev/nvme") {
-		out, err = runSmartctlCommand(5, device)
+		out, err := runSmartctlCommand(5, device)
 		if err != nil && strings.TrimSpace(out) == "" {
-			fmt.Printf("DEBUG NVME smartctl error for %s: %v\n", device, err)
+			log.Printf("nvme smartctl error for %s: %v", device, err)
 			return 0
 		}
 
-		if temp := parseNvmeTemperature(out); temp > 0 {
-			fmt.Printf("DEBUG NVME parsed temp for %s: %.2f\n", device, temp)
-			return temp
-		}
-
-		fmt.Printf("DEBUG NVME parsed temp for %s: 0\n", device)
-		return 0
+		return parseNvmeTemperature(out)
 	}
 
-	out, err = runSmartctlCommand(5, "-d", "sat", device)
+	out, err := runSmartctlCommand(5, "-d", "sat", device)
 	if err != nil && strings.TrimSpace(out) == "" {
 		out, err = runSmartctlCommand(5, device)
 		if err != nil && strings.TrimSpace(out) == "" {
-			fmt.Printf("DEBUG ATA smartctl error for %s: %v\n", device, err)
+			log.Printf("ata smartctl error for %s: %v", device, err)
 			return 0
 		}
 	}
 
-	if temp := parseAtaTemperature(out); temp > 0 {
-		fmt.Printf("DEBUG ATA parsed temp for %s: %.2f\n", device, temp)
-		return temp
-	}
-
-	fmt.Printf("DEBUG ATA parsed temp for %s: 0\n", device)
-	return 0
+	return parseAtaTemperature(out)
 }
 
 func parseNvmeTemperature(out string) float64 {
-	lines := strings.Split(out, "\n")
+	prefixes := []string{"Temperature:", "Temperature Sensor 1:", "Temperature Sensor 2:"}
 
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-
-		if strings.HasPrefix(line, "Temperature:") {
-			fields := strings.Fields(line)
-			for _, field := range fields {
-				if value, err := strconv.ParseFloat(field, 64); err == nil {
-					return value
-				}
-			}
+	for _, prefix := range prefixes {
+		if temp := findTempInLines(out, prefix); temp > 0 {
+			return temp
 		}
 	}
 
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
+	return 0
+}
 
-		if strings.HasPrefix(line, "Temperature Sensor 1:") {
-			fields := strings.Fields(line)
-			for _, field := range fields {
-				if value, err := strconv.ParseFloat(field, 64); err == nil {
-					return value
-				}
+func findTempInLines(out, prefix string) float64 {
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, prefix) {
+			continue
+		}
+		for _, field := range strings.Fields(line) {
+			if value, err := strconv.ParseFloat(field, 64); err == nil {
+				return value
 			}
 		}
 	}
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-
-		if strings.HasPrefix(line, "Temperature Sensor 2:") {
-			fields := strings.Fields(line)
-			for _, field := range fields {
-				if value, err := strconv.ParseFloat(field, 64); err == nil {
-					return value
-				}
-			}
-		}
-	}
-
 	return 0
 }
 
 func parseAtaTemperature(out string) float64 {
-	lines := strings.Split(out, "\n")
-
-	for _, line := range lines {
+	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
 		fields := strings.Fields(line)
 
-		if len(fields) >= 10 && fields[0] == "194" && fields[1] == "Temperature_Celsius" {
-			value, err := strconv.ParseFloat(fields[len(fields)-1], 64)
-			if err == nil {
-				return value
-			}
+		if len(fields) < 10 {
+			continue
 		}
 
-		if len(fields) >= 10 && fields[0] == "190" && fields[1] == "Airflow_Temperature_Cel" {
-			value, err := strconv.ParseFloat(fields[len(fields)-1], 64)
-			if err == nil {
+		if fields[0] == "194" && fields[1] == "Temperature_Celsius" ||
+			fields[0] == "190" && fields[1] == "Airflow_Temperature_Cel" {
+			if value, err := strconv.ParseFloat(fields[len(fields)-1], 64); err == nil {
 				return value
 			}
 		}
@@ -357,157 +403,14 @@ func parseAtaTemperature(out string) float64 {
 	return 0
 }
 
-func detectLocalIPv4() string {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return "—"
-	}
-
-	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
-			continue
-		}
-
-		addrs, err := iface.Addrs()
-		if err != nil {
-			continue
-		}
-
-		for _, addr := range addrs {
-			ipNet, ok := addr.(*net.IPNet)
-			if !ok || ipNet.IP == nil {
-				continue
-			}
-
-			ip := ipNet.IP.To4()
-			if ip == nil {
-				continue
-			}
-
-			return ip.String()
-		}
-	}
-
-	return "—"
-}
-
-func detectPublicIP() string {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.ipify.org", nil)
-	if err != nil {
-		return "—"
-	}
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return "—"
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 64))
-	if err != nil {
-		return "—"
-	}
-
-	ip := strings.TrimSpace(string(body))
-	if ip == "" {
-		return "—"
-	}
-
-	return ip
-}
-
-func measureTCPPing(address string) float64 {
-	start := time.Now()
-	conn, err := net.DialTimeout("tcp", address, 1500*time.Millisecond)
-	if err != nil {
-		return 0
-	}
-	_ = conn.Close()
-
-	return float64(time.Since(start).Microseconds()) / 1000.0
-}
-
-func sampleNetworkTotals() (uint64, uint64, float64, float64) {
-	stats, err := gnet.IOCounters(false)
-	if err != nil || len(stats) == 0 {
-		return 0, 0, 0, 0
-	}
-
-	rx := stats[0].BytesRecv
-	tx := stats[0].BytesSent
-	now := time.Now()
-
-	netSampleMu.Lock()
-	defer netSampleMu.Unlock()
-
-	if lastSampleAt.IsZero() {
-		lastSampleAt = now
-		lastRxBytes = rx
-		lastTxBytes = tx
-		return rx, tx, 0, 0
-	}
-
-	elapsed := now.Sub(lastSampleAt).Seconds()
-	if elapsed <= 0 {
-		return rx, tx, 0, 0
-	}
-
-	rxSpeed := float64(rx-lastRxBytes) / elapsed
-	txSpeed := float64(tx-lastTxBytes) / elapsed
-
-	lastSampleAt = now
-	lastRxBytes = rx
-	lastTxBytes = tx
-
-	return rx, tx, rxSpeed, txSpeed
-}
-
-func isTCPPortOpen(address string) bool {
-	conn, err := net.DialTimeout("tcp", address, serviceDialTO)
-	if err != nil {
-		return false
-	}
-	_ = conn.Close()
-	return true
-}
-
-func isServiceActive(name string) bool {
-	out, err := exec.Command("systemctl", "is-active", name).Output()
-	if err != nil {
-		return false
-	}
-
-	return strings.TrimSpace(string(out)) == "active"
-}
-
-func humanBytes(v uint64) string {
-	const unit = 1024
-	if v < unit {
-		return fmt.Sprintf("%d B", v)
-	}
-
-	div, exp := uint64(unit), 0
-	for n := v / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-
-	value := float64(v) / float64(div)
-	suffixes := []string{"KiB", "MiB", "GiB", "TiB"}
-	return fmt.Sprintf("%.2f %s", value, suffixes[exp])
-}
-
 func readCPUTemperature() float64 {
-	raw, err := os.ReadFile("/sys/class/thermal/thermal_zone0/temp")
-	if err == nil {
-		value, parseErr := strconv.ParseFloat(strings.TrimSpace(string(raw)), 64)
-		if parseErr == nil {
+	if raw, err := os.ReadFile("/sys/class/thermal/thermal_zone0/temp"); err == nil {
+		if value, parseErr := strconv.ParseFloat(strings.TrimSpace(string(raw)), 64); parseErr == nil {
 			return value / 1000.0
 		}
 	}
 
-	temps, err := host.SensorsTemperatures()
-	if err == nil {
+	if temps, err := host.SensorsTemperatures(); err == nil {
 		for _, t := range temps {
 			if t.Temperature > 0 {
 				return t.Temperature
@@ -519,37 +422,24 @@ func readCPUTemperature() float64 {
 }
 
 func isCPUThrottled() bool {
-	out, err := runCommand(2, "vcgencmd", "get_throttled")
+	out, err := sysutil.RunCommand(2, "vcgencmd", "get_throttled")
 	if err != nil {
 		return false
 	}
 
-	out = strings.TrimSpace(out)
-	parts := strings.Split(out, "=")
+	parts := strings.Split(strings.TrimSpace(out), "=")
 	if len(parts) != 2 {
 		return false
 	}
 
-	valueStr := strings.TrimSpace(parts[1])
-	valueStr = strings.TrimPrefix(strings.ToLower(valueStr), "0x")
+	valueStr := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(parts[1])), "0x")
 
 	value, err := strconv.ParseUint(valueStr, 16, 64)
 	if err != nil {
 		return false
 	}
 
-	const (
-		underVoltageNow  uint64 = 1 << 0
-		freqCappedNow    uint64 = 1 << 1
-		throttledNow     uint64 = 1 << 2
-		softTempLimitNow uint64 = 1 << 3
-	)
-
-	mask := underVoltageNow |
-		freqCappedNow |
-		throttledNow |
-		softTempLimitNow
-
+	const mask uint64 = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3)
 	return value&mask != 0
 }
 
@@ -558,35 +448,19 @@ func readSSDTemperature(disks []DiskMetrics) float64 {
 		return 0
 	}
 
-	for _, diskItem := range disks {
-		if diskItem.Mountpoint == "/" && diskItem.TemperatureCelsius > 0 {
-			return diskItem.TemperatureCelsius
+	for _, d := range disks {
+		if d.Mountpoint == "/" && d.TemperatureCelsius > 0 {
+			return d.TemperatureCelsius
 		}
 	}
 
-	for _, diskItem := range disks {
-		if diskItem.TemperatureCelsius > 0 {
-			return diskItem.TemperatureCelsius
+	for _, d := range disks {
+		if d.TemperatureCelsius > 0 {
+			return d.TemperatureCelsius
 		}
 	}
 
 	return 0
-}
-
-func runCommand(timeoutSec int, name string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, name, args...)
-	out, err := cmd.CombinedOutput()
-	if ctx.Err() == context.DeadlineExceeded {
-		return "", fmt.Errorf("command timeout")
-	}
-	if err != nil {
-		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-
-	return strings.TrimSpace(string(out)), nil
 }
 
 func runSmartctlCommand(timeoutSec int, args ...string) (string, error) {

@@ -1,13 +1,9 @@
 package system
 
 import (
-	"context"
 	"fmt"
-	"io"
 	"net"
-	"net/http"
 	"os"
-	"os/exec"
 	"os/user"
 	"runtime"
 	"strconv"
@@ -18,21 +14,17 @@ import (
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/load"
-	gnet "github.com/shirou/gopsutil/v3/net"
+
+	"github.com/drTragger/mykola-miniapp/internal/sysutil"
 )
 
-var (
-	netSampleMu  sync.Mutex
-	lastSampleAt time.Time
-	lastRxBytes  uint64
-	lastTxBytes  uint64
-	httpClient   = &http.Client{Timeout: 2 * time.Second}
-)
+var netSampler = sysutil.NewNetworkSampler()
 
 func Collect() (Response, error) {
-	var resp Response
-	resp.OK = true
-	resp.CollectedAt = time.Now().Format(time.RFC3339)
+	resp := Response{
+		OK:          true,
+		CollectedAt: time.Now().Format(time.RFC3339),
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(4)
@@ -63,11 +55,50 @@ func Collect() (Response, error) {
 }
 
 func fillSystem(resp *Response) {
-	hostInfo, _ := host.Info()
-	loadAvg, _ := load.Avg()
-	cpuInfos, _ := cpu.Info()
-	logicalCPUCount, _ := cpu.Counts(true)
-	hostname, _ := os.Hostname()
+	var (
+		hostInfo        *host.InfoStat
+		loadAvg         *load.AvgStat
+		cpuInfos        []cpu.InfoStat
+		logicalCPUCount int
+		hostname        string
+	)
+
+	var wg sync.WaitGroup
+	wg.Add(5)
+
+	go func() {
+		defer wg.Done()
+		hostInfo, _ = host.Info()
+	}()
+
+	go func() {
+		defer wg.Done()
+		loadAvg, _ = load.Avg()
+	}()
+
+	go func() {
+		defer wg.Done()
+		cpuInfos, _ = cpu.Info()
+	}()
+
+	go func() {
+		defer wg.Done()
+		logicalCPUCount, _ = cpu.Counts(true)
+	}()
+
+	go func() {
+		defer wg.Done()
+		hostname, _ = os.Hostname()
+	}()
+
+	wg.Wait()
+
+	if hostInfo == nil {
+		hostInfo = &host.InfoStat{}
+	}
+	if loadAvg == nil {
+		loadAvg = &load.AvgStat{}
+	}
 
 	cpuModel := ""
 	cpuFrequencyMHz := 0.0
@@ -94,20 +125,41 @@ func fillSystem(resp *Response) {
 }
 
 func fillNetwork(resp *Response) {
-	localIPv4 := detectLocalIPv4()
-	publicIP := detectPublicIP()
-	pingMs := measureTCPPing("1.1.1.1:443")
-	rxTotal, txTotal, rxSpeed, txSpeed := sampleNetworkTotals()
+	var (
+		localIPv4 string
+		publicIP  string
+		pingMs    float64
+	)
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	go func() {
+		defer wg.Done()
+		localIPv4 = sysutil.DetectLocalIPv4()
+	}()
+
+	go func() {
+		defer wg.Done()
+		publicIP = sysutil.DetectPublicIP()
+	}()
+
+	go func() {
+		defer wg.Done()
+		pingMs = sysutil.MeasureTCPPing("1.1.1.1:443")
+	}()
+
+	rxTotal, txTotal, rxSpeed, txSpeed := netSampler.Sample()
+
+	wg.Wait()
 
 	rxSpeedHuman := "—"
 	txSpeedHuman := "—"
-
 	if rxSpeed > 0 {
-		rxSpeedHuman = humanBytes(uint64(rxSpeed)) + "/s"
+		rxSpeedHuman = sysutil.HumanBytes(uint64(rxSpeed)) + "/s"
 	}
-
 	if txSpeed > 0 {
-		txSpeedHuman = humanBytes(uint64(txSpeed)) + "/s"
+		txSpeedHuman = sysutil.HumanBytes(uint64(txSpeed)) + "/s"
 	}
 
 	resp.Network = NetworkMetrics{
@@ -118,29 +170,77 @@ func fillNetwork(resp *Response) {
 		TxBytesTotal: txTotal,
 		RxSpeedBps:   rxSpeed,
 		TxSpeedBps:   txSpeed,
-		RxTotalHuman: humanBytes(rxTotal),
-		TxTotalHuman: humanBytes(txTotal),
+		RxTotalHuman: sysutil.HumanBytes(rxTotal),
+		TxTotalHuman: sysutil.HumanBytes(txTotal),
 		RxSpeedHuman: rxSpeedHuman,
 		TxSpeedHuman: txSpeedHuman,
 	}
 }
 
 func fillVPN(resp *Response) {
-	serviceOK := isServiceActive("wg-quick@wg0")
-	wgIP := getWGInterfaceIP()
-	endpoint, handshakeAgo, rx, tx := getWGDumpData()
-	routeTable := getVPNRouteTable()
+	var (
+		serviceOK         bool
+		wgIP              string
+		endpoint          string
+		handshakeAgo      string
+		rx, tx            string
+		routeTable        string
+		qbitServiceStatus bool
+		qbitServiceUser   string
+		qbitBinding       string
+		qbitWebUI         string
+		ruleOK            bool
+		routeOK           bool
+	)
 
-	qbitServiceStatus := getQBittorrentServiceStatus()
-	qbitServiceUser := getQBittorrentServiceUser()
-	qbitBinding := getQBittorrentInterfaceBinding()
-	qbitWebUI := getQBittorrentWebUIAddress()
+	var wg sync.WaitGroup
+	wg.Add(8)
 
-	ruleOK := hasVPNRuleForQBittorrent()
-	routeOK := hasVPNRoute()
+	go func() {
+		defer wg.Done()
+		serviceOK = sysutil.IsServiceActive("wg-quick@wg0")
+	}()
+
+	go func() {
+		defer wg.Done()
+		wgIP = getWGInterfaceIP()
+	}()
+
+	go func() {
+		defer wg.Done()
+		endpoint, handshakeAgo, rx, tx = getWGDumpData()
+	}()
+
+	go func() {
+		defer wg.Done()
+		routeTable = getVPNRouteTable()
+	}()
+
+	go func() {
+		defer wg.Done()
+		qbitServiceStatus = getQBittorrentServiceStatus()
+	}()
+
+	go func() {
+		defer wg.Done()
+		qbitServiceUser = getQBittorrentServiceUser()
+	}()
+
+	go func() {
+		defer wg.Done()
+		qbitBinding, qbitWebUI = readQBittorrentBindingAndWebUI()
+	}()
+
+	go func() {
+		defer wg.Done()
+		ruleOK = hasVPNRuleForQBittorrent()
+		routeOK = hasVPNRoute()
+	}()
+
+	wg.Wait()
+
 	bindingOK := qbitBinding == "wg0"
 	handshakeOK := handshakeAgo != "ніколи" && handshakeAgo != "н/д"
-
 	ok := serviceOK && handshakeOK && ruleOK && qbitServiceStatus && bindingOK
 
 	resp.VPN = VPNMetrics{
@@ -171,7 +271,7 @@ func hasVPNRoute() bool {
 	}
 
 	for _, cmd := range checks {
-		out, err := runCommand(2, cmd[0], cmd[1:]...)
+		out, err := sysutil.RunCommand(2, cmd[0], cmd[1:]...)
 		if err != nil {
 			continue
 		}
@@ -194,177 +294,8 @@ func fillUsers(resp *Response) {
 	resp.Users = users
 }
 
-func detectLocalIPv4() string {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		return "—"
-	}
-
-	for _, iface := range ifaces {
-		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
-			continue
-		}
-
-		addrs, err := iface.Addrs()
-		if err != nil {
-			continue
-		}
-
-		for _, addr := range addrs {
-			ipNet, ok := addr.(*net.IPNet)
-			if !ok || ipNet.IP == nil {
-				continue
-			}
-
-			ip := ipNet.IP.To4()
-			if ip == nil {
-				continue
-			}
-
-			return ip.String()
-		}
-	}
-
-	return "—"
-}
-
-func detectPublicIP() string {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.ipify.org", nil)
-	if err != nil {
-		return "—"
-	}
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return "—"
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 64))
-	if err != nil {
-		return "—"
-	}
-
-	ip := strings.TrimSpace(string(body))
-	if ip == "" {
-		return "—"
-	}
-
-	return ip
-}
-
-func measureTCPPing(address string) float64 {
-	start := time.Now()
-	conn, err := net.DialTimeout("tcp", address, 1500*time.Millisecond)
-	if err != nil {
-		return 0
-	}
-	_ = conn.Close()
-
-	return float64(time.Since(start).Microseconds()) / 1000.0
-}
-
-func sampleNetworkTotals() (uint64, uint64, float64, float64) {
-	stats, err := gnet.IOCounters(false)
-	if err != nil || len(stats) == 0 {
-		return 0, 0, 0, 0
-	}
-
-	rx := stats[0].BytesRecv
-	tx := stats[0].BytesSent
-	now := time.Now()
-
-	netSampleMu.Lock()
-	defer netSampleMu.Unlock()
-
-	if lastSampleAt.IsZero() {
-		lastSampleAt = now
-		lastRxBytes = rx
-		lastTxBytes = tx
-		return rx, tx, 0, 0
-	}
-
-	elapsed := now.Sub(lastSampleAt).Seconds()
-	if elapsed <= 0 {
-		return rx, tx, 0, 0
-	}
-
-	rxSpeed := float64(rx-lastRxBytes) / elapsed
-	txSpeed := float64(tx-lastTxBytes) / elapsed
-
-	lastSampleAt = now
-	lastRxBytes = rx
-	lastTxBytes = tx
-
-	return rx, tx, rxSpeed, txSpeed
-}
-
-func humanBytes(v uint64) string {
-	const unit = 1024
-	if v < unit {
-		return fmt.Sprintf("%d B", v)
-	}
-
-	div, exp := uint64(unit), 0
-	for n := v / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-
-	value := float64(v) / float64(div)
-	suffixes := []string{"KiB", "MiB", "GiB", "TiB"}
-	return fmt.Sprintf("%.2f %s", value, suffixes[exp])
-}
-
-func humanizeDurationShort(d time.Duration) string {
-	if d < 0 {
-		return "н/д"
-	}
-
-	seconds := int(d.Seconds())
-	if seconds < 60 {
-		return fmt.Sprintf("%dс", seconds)
-	}
-
-	minutes := seconds / 60
-	if minutes < 60 {
-		return fmt.Sprintf("%dхв", minutes)
-	}
-
-	hours := minutes / 60
-	minutes = minutes % 60
-	if hours < 24 {
-		return fmt.Sprintf("%dг %dхв", hours, minutes)
-	}
-
-	days := hours / 24
-	hours = hours % 24
-	return fmt.Sprintf("%dд %dг", days, hours)
-}
-
-func runCommand(timeoutSec int, name string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
-	defer cancel()
-
-	cmd := exec.CommandContext(ctx, name, args...)
-	out, err := cmd.CombinedOutput()
-	if ctx.Err() == context.DeadlineExceeded {
-		return "", fmt.Errorf("command timeout")
-	}
-	if err != nil {
-		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
-	}
-
-	return strings.TrimSpace(string(out)), nil
-}
-
-func runSudoCommand(timeoutSec int, cmd string, args ...string) (string, error) {
-	allArgs := append([]string{"-n", cmd}, args...)
-	return runCommand(timeoutSec, "sudo", allArgs...)
-}
-
 func getWGInterfaceIP() string {
-	out, err := runCommand(2, "ip", "-4", "-o", "addr", "show", "dev", "wg0")
+	out, err := sysutil.RunCommand(2, "ip", "-4", "-o", "addr", "show", "dev", "wg0")
 	if err != nil || out == "" {
 		return "н/д"
 	}
@@ -378,7 +309,7 @@ func getWGInterfaceIP() string {
 }
 
 func getWGDumpData() (endpoint, handshakeAgo, rx, tx string) {
-	out, err := runSudoCommand(2, "wg", "show", "wg0", "dump")
+	out, err := sysutil.RunSudoCommand(2, "wg", "show", "wg0", "dump")
 	if err != nil || out == "" {
 		return "н/д", "н/д", "н/д", "н/д"
 	}
@@ -399,21 +330,21 @@ func getWGDumpData() (endpoint, handshakeAgo, rx, tx string) {
 	if err != nil || handshakeUnix == 0 {
 		handshakeAgo = "ніколи"
 	} else {
-		handshakeAgo = humanizeDurationShort(time.Since(time.Unix(handshakeUnix, 0))) + " тому"
+		handshakeAgo = sysutil.HumanizeDurationShort(time.Since(time.Unix(handshakeUnix, 0))) + " тому"
 	}
 
 	rxBytes, err := strconv.ParseUint(fields[5], 10, 64)
 	if err != nil {
 		rx = "н/д"
 	} else {
-		rx = humanBytes(rxBytes)
+		rx = sysutil.HumanBytes(rxBytes)
 	}
 
 	txBytes, err := strconv.ParseUint(fields[6], 10, 64)
 	if err != nil {
 		tx = "н/д"
 	} else {
-		tx = humanBytes(txBytes)
+		tx = sysutil.HumanBytes(txBytes)
 	}
 
 	return endpoint, handshakeAgo, rx, tx
@@ -425,7 +356,7 @@ func hasVPNRuleForQBittorrent() bool {
 		return false
 	}
 
-	out, err := runCommand(2, "ip", "rule")
+	out, err := sysutil.RunCommand(2, "ip", "rule")
 	if err != nil {
 		return false
 	}
@@ -444,21 +375,20 @@ func getVPNRouteTable() string {
 	}
 
 	for _, check := range checks {
-		out, err := runCommand(2, "ip", check.args...)
+		out, err := sysutil.RunCommand(2, "ip", check.args...)
 		if err == nil && strings.TrimSpace(out) != "" {
 			return strings.TrimSpace(out)
 		}
 	}
 
-	out, err := runCommand(2, "ip", "route")
+	out, err := sysutil.RunCommand(2, "ip", "route")
 	if err == nil && strings.TrimSpace(out) != "" {
-		lines := []string{}
+		var lines []string
 		for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 			if strings.Contains(line, "wg0") {
 				lines = append(lines, line)
 			}
 		}
-
 		if len(lines) > 0 {
 			return strings.Join(lines, "\n")
 		}
@@ -476,16 +406,16 @@ func getQBittorrentUserInfo() (username string, uid string) {
 	return u.Username, u.Uid
 }
 
-func getQBittorrentServiceUser() string {
-	serviceNames := []string{
-		"qbittorrent",
-		"qbittorrent.service",
-		"qbittorrent-nox",
-		"qbittorrent-nox.service",
-	}
+var qbittorrentServiceNames = []string{
+	"qbittorrent",
+	"qbittorrent.service",
+	"qbittorrent-nox",
+	"qbittorrent-nox.service",
+}
 
-	for _, service := range serviceNames {
-		out, err := runCommand(2, "systemctl", "show", service, "--property=User", "--value")
+func getQBittorrentServiceUser() string {
+	for _, service := range qbittorrentServiceNames {
+		out, err := sysutil.RunCommand(2, "systemctl", "show", service, "--property=User", "--value")
 		if err == nil && strings.TrimSpace(out) != "" {
 			return strings.TrimSpace(out)
 		}
@@ -495,60 +425,42 @@ func getQBittorrentServiceUser() string {
 }
 
 func getQBittorrentServiceStatus() bool {
-	serviceNames := []string{
-		"qbittorrent",
-		"qbittorrent.service",
-		"qbittorrent-nox",
-		"qbittorrent-nox.service",
-	}
-
-	for _, service := range serviceNames {
-		if isServiceActive(service) {
+	for _, service := range qbittorrentServiceNames {
+		if sysutil.IsServiceActive(service) {
 			return true
 		}
 	}
-
 	return false
 }
 
-func getQBittorrentInterfaceBinding() string {
+func readQBittorrentBindingAndWebUI() (binding string, webui string) {
 	data := readQBittorrentConfig()
 	if data == "" {
-		return "н/д"
+		return "н/д", "н/д"
 	}
 
-	lines := strings.Split(data, "\n")
-	keys := []string{
+	binding = "н/д"
+	address := "0.0.0.0"
+	port := "8080"
+
+	bindingKeys := []string{
 		"Connection\\Interface=",
 		"Connection\\InterfaceName=",
 		"Session\\Interface=",
 		"Session\\InterfaceName=",
 	}
 
-	for _, line := range lines {
+	for _, line := range strings.Split(data, "\n") {
 		line = strings.TrimSpace(line)
-		for _, key := range keys {
-			if strings.HasPrefix(line, key) {
-				return strings.TrimSpace(strings.TrimPrefix(line, key))
+
+		if binding == "н/д" {
+			for _, key := range bindingKeys {
+				if strings.HasPrefix(line, key) {
+					binding = strings.TrimSpace(strings.TrimPrefix(line, key))
+					break
+				}
 			}
 		}
-	}
-
-	return "н/д"
-}
-
-func getQBittorrentWebUIAddress() string {
-	data := readQBittorrentConfig()
-	if data == "" {
-		return "н/д"
-	}
-
-	lines := strings.Split(data, "\n")
-	address := "0.0.0.0"
-	port := "8080"
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
 
 		if strings.HasPrefix(line, "WebUI\\Address=") {
 			address = strings.TrimSpace(strings.TrimPrefix(line, "WebUI\\Address="))
@@ -559,7 +471,7 @@ func getQBittorrentWebUIAddress() string {
 		}
 	}
 
-	return fmt.Sprintf("%s:%s", address, port)
+	return binding, fmt.Sprintf("%s:%s", address, port)
 }
 
 func readQBittorrentConfig() string {
@@ -571,7 +483,7 @@ func readQBittorrentConfig() string {
 	}
 
 	for _, path := range paths {
-		out, err := runSudoCommand(2, "cat", path)
+		out, err := sysutil.RunSudoCommand(2, "cat", path)
 		if err == nil && strings.TrimSpace(out) != "" {
 			return out
 		}
@@ -580,17 +492,8 @@ func readQBittorrentConfig() string {
 	return ""
 }
 
-func isServiceActive(name string) bool {
-	out, err := exec.Command("systemctl", "is-active", name).Output()
-	if err != nil {
-		return false
-	}
-
-	return strings.TrimSpace(string(out)) == "active"
-}
-
 func getLoggedInUsers() ([]UserSession, error) {
-	out, err := runCommand(3, "who")
+	out, err := sysutil.RunCommand(3, "who")
 	if err != nil || strings.TrimSpace(out) == "" {
 		return []UserSession{}, nil
 	}
@@ -636,7 +539,7 @@ func parseWhoLine(line string) (UserSession, bool) {
 	loginAt := fmt.Sprintf("%s %s", datePart, timePart)
 	connectionType := detectConnectionType(tty, from)
 
-	session := UserSession{
+	return UserSession{
 		Username:       username,
 		TTY:            tty,
 		From:           from,
@@ -646,9 +549,7 @@ func parseWhoLine(line string) (UserSession, bool) {
 		ConnectionType: connectionType,
 		IsLocal:        isLocalSession(tty, from),
 		Location:       "—",
-	}
-
-	return session, true
+	}, true
 }
 
 func detectConnectionType(tty, from string) string {
@@ -686,8 +587,7 @@ func isLocalSession(tty, from string) bool {
 }
 
 func normalizeRemoteIP(from string) string {
-	ip := net.ParseIP(from)
-	if ip != nil {
+	if ip := net.ParseIP(from); ip != nil {
 		return ip.String()
 	}
 
@@ -695,15 +595,13 @@ func normalizeRemoteIP(from string) string {
 }
 
 func getIdleMap() map[string]string {
-	out, err := runCommand(3, "who", "-u")
+	out, err := sysutil.RunCommand(3, "who", "-u")
 	if err != nil || strings.TrimSpace(out) == "" {
 		return map[string]string{}
 	}
 
 	result := map[string]string{}
-	lines := strings.Split(strings.TrimSpace(out), "\n")
-
-	for _, line := range lines {
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 5 {
 			continue

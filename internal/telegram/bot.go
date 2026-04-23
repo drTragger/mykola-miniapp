@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"context"
 	"log"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -8,7 +9,7 @@ import (
 	"github.com/drTragger/mykola-miniapp/internal/config"
 )
 
-func StartBot(cfg config.Config) {
+func StartBot(ctx context.Context, cfg config.Config) {
 	if cfg.Telegram.Token == "" {
 		log.Println("Telegram bot disabled (no token)")
 		return
@@ -16,7 +17,8 @@ func StartBot(cfg config.Config) {
 
 	bot, err := tgbotapi.NewBotAPI(cfg.Telegram.Token)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("telegram bot init failed: %v", err)
+		return
 	}
 
 	log.Println("Telegram bot started:", bot.Self.UserName)
@@ -25,12 +27,21 @@ func StartBot(cfg config.Config) {
 	u.Timeout = 60
 
 	updates := bot.GetUpdatesChan(u)
+	defer bot.StopReceivingUpdates()
 
-	for update := range updates {
-		if update.Message == nil {
-			continue
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("Telegram bot stopping...")
+			return
+		case update, ok := <-updates:
+			if !ok {
+				return
+			}
+			if update.Message == nil {
+				continue
+			}
+			handleMessage(bot, cfg, update.Message)
 		}
-
-		handleMessage(bot, cfg, update.Message)
 	}
 }
