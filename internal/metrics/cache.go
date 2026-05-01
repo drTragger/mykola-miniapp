@@ -14,6 +14,8 @@ func StartBackgroundRefresh(ctx context.Context, interval time.Duration) {
 	snapshotCache.Start(ctx, interval)
 
 	go func() {
+		time.Sleep(interval + 500*time.Millisecond)
+
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 
