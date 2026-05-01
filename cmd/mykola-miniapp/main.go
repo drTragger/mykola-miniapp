@@ -20,6 +20,10 @@ import (
 func main() {
 	cfg := config.Load()
 
+	if err := metrics.InitHistory(); err != nil {
+		log.Fatal(err)
+	}
+
 	if err := ups.InitHistory(); err != nil {
 		log.Fatal(err)
 	}

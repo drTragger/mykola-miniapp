@@ -58,3 +58,19 @@ type ServicesMetrics struct {
 	Prowlarr    bool `json:"prowlarr"`
 	Fail2ban    bool `json:"fail2ban"`
 }
+
+type HistoryPoint struct {
+	Timestamp       int64   `json:"timestamp"`
+	CPUUsagePercent float64 `json:"cpuUsagePercent"`
+	CPUTempCelsius  float64 `json:"cpuTempCelsius"`
+	RAMUsagePercent float64 `json:"ramUsagePercent"`
+	RxSpeedBps      float64 `json:"rxSpeedBps"`
+	TxSpeedBps      float64 `json:"txSpeedBps"`
+	Time            string  `json:"time"`
+}
+
+type HistoryResponse struct {
+	OK     bool           `json:"ok"`
+	Points []HistoryPoint `json:"points"`
+	Error  string         `json:"error,omitempty"`
+}

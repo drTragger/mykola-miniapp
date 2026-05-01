@@ -1,6 +1,7 @@
 import { ref } from 'vue'
+import { fetchMetricsHistory } from '../api/metricsHistory'
 
-const MAX_POINTS = 24
+const MAX_POINTS = 288
 
 export function useMetricsHistory() {
   const cpuUsageHistory = ref([])
@@ -9,16 +10,14 @@ export function useMetricsHistory() {
   const rxSpeedHistory = ref([])
   const txSpeedHistory = ref([])
 
-  function pushPoint(collectionRef, value) {
-    const now = new Date()
-    const time = now.toLocaleTimeString('uk-UA', {
+  function pushPoint(collectionRef, value, time) {
+    const t = time ?? new Date().toLocaleTimeString('uk-UA', {
       hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
+      minute: '2-digit'
     })
 
     collectionRef.value.push({
-      time,
+      time: t,
       value: typeof value === 'number' ? value : 0
     })
 
@@ -37,12 +36,27 @@ export function useMetricsHistory() {
     pushPoint(txSpeedHistory, metrics.network?.txSpeedBps)
   }
 
+  async function loadHistory() {
+    try {
+      const points = await fetchMetricsHistory(288)
+
+      cpuUsageHistory.value = points.map(p => ({ time: p.time, value: p.cpuUsagePercent }))
+      cpuTempHistory.value  = points.map(p => ({ time: p.time, value: p.cpuTempCelsius }))
+      ramUsageHistory.value = points.map(p => ({ time: p.time, value: p.ramUsagePercent }))
+      rxSpeedHistory.value  = points.map(p => ({ time: p.time, value: p.rxSpeedBps }))
+      txSpeedHistory.value  = points.map(p => ({ time: p.time, value: p.txSpeedBps }))
+    } catch (error) {
+      console.error('loadHistory error:', error)
+    }
+  }
+
   return {
     cpuUsageHistory,
     cpuTempHistory,
     ramUsageHistory,
     rxSpeedHistory,
     txSpeedHistory,
-    appendMetrics
+    appendMetrics,
+    loadHistory
   }
 }
