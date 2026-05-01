@@ -85,7 +85,8 @@ const {
   ramUsageHistory,
   rxSpeedHistory,
   txSpeedHistory,
-  appendMetrics
+  appendMetrics,
+  loadHistory
 } = useMetricsHistory()
 
 const user = tg?.initDataUnsafe?.user
@@ -307,6 +308,7 @@ onMounted(() => {
   )
 
   loadMetrics()
+  loadHistory()
   loadHeroBattery()
   loadSystemDetails()
   loadVpnSummary()
