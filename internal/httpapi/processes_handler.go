@@ -11,7 +11,10 @@ import (
 
 func handleProcessesList(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		writeJSON(w, http.StatusMethodNotAllowed, processes.ListResponse{
+			OK:    false,
+			Error: "method not allowed",
+		})
 		return
 	}
 
@@ -44,7 +47,10 @@ func handleProcessesList(w http.ResponseWriter, r *http.Request) {
 
 func handleProcessAction(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		writeJSON(w, http.StatusMethodNotAllowed, processes.ActionResponse{
+			OK:    false,
+			Error: "method not allowed",
+		})
 		return
 	}
 

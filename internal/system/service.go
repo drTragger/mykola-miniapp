@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/host"
-	"github.com/shirou/gopsutil/v3/load"
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/host"
+	"github.com/shirou/gopsutil/v4/load"
 
 	"github.com/drTragger/mykola-miniapp/internal/sysutil"
 )

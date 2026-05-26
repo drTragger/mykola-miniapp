@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/disk"
-	"github.com/shirou/gopsutil/v3/host"
-	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/disk"
+	"github.com/shirou/gopsutil/v4/host"
+	"github.com/shirou/gopsutil/v4/mem"
 
 	"github.com/drTragger/mykola-miniapp/internal/sysutil"
 )
@@ -407,14 +407,6 @@ func readCPUTemperature() float64 {
 	if raw, err := os.ReadFile("/sys/class/thermal/thermal_zone0/temp"); err == nil {
 		if value, parseErr := strconv.ParseFloat(strings.TrimSpace(string(raw)), 64); parseErr == nil {
 			return value / 1000.0
-		}
-	}
-
-	if temps, err := host.SensorsTemperatures(); err == nil {
-		for _, t := range temps {
-			if t.Temperature > 0 {
-				return t.Temperature
-			}
 		}
 	}
 

@@ -9,10 +9,17 @@ import (
 	"sync"
 	"time"
 
-	gnet "github.com/shirou/gopsutil/v3/net"
+	gnet "github.com/shirou/gopsutil/v4/net"
 )
 
 var publicIPClient = &http.Client{Timeout: 2 * time.Second}
+
+var (
+	publicIPMu     sync.Mutex
+	publicIPCached string
+	publicIPAt     time.Time
+	publicIPTTL    = 60 * time.Second
+)
 
 func DetectLocalIPv4() string {
 	ifaces, err := net.Interfaces()
@@ -49,28 +56,45 @@ func DetectLocalIPv4() string {
 }
 
 func DetectPublicIP() string {
+	publicIPMu.Lock()
+	defer publicIPMu.Unlock()
+
+	if publicIPCached != "" && time.Since(publicIPAt) < publicIPTTL {
+		return publicIPCached
+	}
+
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.ipify.org", nil)
 	if err != nil {
-		return "—"
+		return fallbackPublicIP()
 	}
 
 	resp, err := publicIPClient.Do(req)
 	if err != nil {
-		return "—"
+		return fallbackPublicIP()
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 64))
 	if err != nil {
-		return "—"
+		return fallbackPublicIP()
 	}
 
 	ip := strings.TrimSpace(string(body))
 	if ip == "" {
-		return "—"
+		return fallbackPublicIP()
 	}
 
-	return ip
+	publicIPCached = ip
+	publicIPAt = time.Now()
+
+	return publicIPCached
+}
+
+func fallbackPublicIP() string {
+	if publicIPCached != "" {
+		return publicIPCached
+	}
+	return "—"
 }
 
 func MeasureTCPPing(address string) float64 {
