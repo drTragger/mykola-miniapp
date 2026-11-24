@@ -329,13 +329,49 @@ func detectDiskName(device string, mountpoint string) string {
 	return strings.TrimPrefix(device, "/dev/")
 }
 
+type cachedDiskTemp struct {
+	value float64
+	at    time.Time
+}
+
+var (
+	diskTempMu    sync.Mutex
+	diskTempCache = map[string]cachedDiskTemp{}
+)
+
+// diskTempTTL: SMART-запити до зовнішніх дисків через USB-міст не варто слати
+// частіше, ніж раз на хвилину (часті запити можуть підвісити міст і відключити диск).
+const diskTempTTL = 60 * time.Second
+
 func readDiskTemperature(device string) float64 {
 	if device == "" {
 		return 0
 	}
 
+	diskTempMu.Lock()
+	c, ok := diskTempCache[device]
+	diskTempMu.Unlock()
+	if ok && time.Since(c.at) < diskTempTTL {
+		return c.value
+	}
+
+	value := readDiskTemperatureUncached(device)
+
+	// Якщо читання не вдалося, показуємо останнє відоме значення замість 0.
+	if value == 0 && ok {
+		value = c.value
+	}
+
+	diskTempMu.Lock()
+	diskTempCache[device] = cachedDiskTemp{value: value, at: time.Now()}
+	diskTempMu.Unlock()
+
+	return value
+}
+
+func readDiskTemperatureUncached(device string) float64 {
 	if strings.HasPrefix(device, "/dev/nvme") {
-		out, err := runSmartctlCommand(5, device)
+		out, err := runSmartctlCommand("-a", 5, device)
 		if err != nil && strings.TrimSpace(out) == "" {
 			log.Printf("nvme smartctl error for %s: %v", device, err)
 			return 0
@@ -344,9 +380,10 @@ func readDiskTemperature(device string) float64 {
 		return parseNvmeTemperature(out)
 	}
 
-	out, err := runSmartctlCommand(5, "-d", "sat", device)
+	// ATA: лише таблиця атрибутів (-A) — один легкий запит замість повного дампа (-a).
+	out, err := runSmartctlCommand("-A", 5, "-d", "sat", device)
 	if err != nil && strings.TrimSpace(out) == "" {
-		out, err = runSmartctlCommand(5, device)
+		out, err = runSmartctlCommand("-A", 5, device)
 		if err != nil && strings.TrimSpace(out) == "" {
 			log.Printf("ata smartctl error for %s: %v", device, err)
 			return 0
@@ -455,11 +492,11 @@ func readSSDTemperature(disks []DiskMetrics) float64 {
 	return 0
 }
 
-func runSmartctlCommand(timeoutSec int, args ...string) (string, error) {
+func runSmartctlCommand(mode string, timeoutSec int, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSec)*time.Second)
 	defer cancel()
 
-	allArgs := append([]string{"-n", "smartctl", "-a"}, args...)
+	allArgs := append([]string{"-n", "smartctl", mode}, args...)
 	cmd := exec.CommandContext(ctx, "sudo", allArgs...)
 	out, err := cmd.CombinedOutput()
 
